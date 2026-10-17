@@ -38,7 +38,15 @@
           <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button class="primary-button step-next" type="button">つぎへ</button></div>
         </section>
         <section class="setup-step" data-step="4" hidden>
-          <h2>4. 設定を確認</h2>
+          <h2>4. 対戦形式を選択</h2>
+          <div class="choice-grid">
+            <button class="choice-button is-selected" data-setting="matchType" data-value="solo" type="button"><strong>ひとりで遊ぶ</strong><span>これまでどおり、一人で練習する</span></button>
+            <button class="choice-button" data-setting="matchType" data-value="online" type="button"><strong>オンライン対戦</strong><span>ルームコードで2〜4人の対戦をする</span></button>
+          </div>
+          <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button class="primary-button step-next" type="button">つぎへ</button></div>
+        </section>
+        <section class="setup-step" data-step="5" hidden>
+          <h2>5. 設定を確認</h2>
           <dl id="setting-summary" class="setting-summary"></dl>
           <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button id="start-button" class="primary-button" type="button">ゲームを始める</button></div>
         </section>
@@ -67,7 +75,26 @@
     <dialog id="result-dialog" class="result-dialog">
       <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
     </dialog>
+    <dialog id="room-dialog" class="result-dialog room-dialog">
+      <div>
+        <p class="eyebrow">Online Match</p>
+        <h2>オンライン対戦</h2>
+        <div id="room-entry">
+          <label class="room-label">表示名<input id="player-name" maxlength="12" value="プレイヤー" /></label>
+          <button id="create-room-button" class="primary-button" type="button">ルームを作る</button>
+          <p>または</p>
+          <label class="room-label">ルームコード<input id="room-code-input" maxlength="6" placeholder="例：AB12CD" /></label>
+          <button id="join-room-button" class="secondary-button" type="button">ルームに参加</button>
+        </div>
+        <div id="room-waiting" hidden>
+          <p>ルームコード</p><strong id="room-code-display">------</strong>
+          <p id="room-player-list"></p>
+          <button id="room-start-button" class="primary-button" type="button" disabled>対戦を始める</button>
+        </div>
+        <p id="room-message"></p>
+      </div>
+    </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
   </body>
 </html>

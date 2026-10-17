@@ -1,3 +1,7 @@
+import {
+  answerRoom, advanceRoom, createRoom, joinRoom, signInForMatch, startRoom, watchRoom,
+} from "./firebase-client.js";
+
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
 const ANSWER_SECONDS = 5;
@@ -27,6 +31,17 @@ const resultLabel = document.querySelector("#result-label");
 const finalScoreElement = document.querySelector("#final-score");
 const resultMessageElement = document.querySelector("#result-message");
 const restartButton = document.querySelector("#restart-button");
+const roomDialog = document.querySelector("#room-dialog");
+const roomEntry = document.querySelector("#room-entry");
+const roomWaiting = document.querySelector("#room-waiting");
+const playerNameInput = document.querySelector("#player-name");
+const roomCodeInput = document.querySelector("#room-code-input");
+const createRoomButton = document.querySelector("#create-room-button");
+const joinRoomButton = document.querySelector("#join-room-button");
+const roomStartButton = document.querySelector("#room-start-button");
+const roomCodeDisplay = document.querySelector("#room-code-display");
+const roomPlayerList = document.querySelector("#room-player-list");
+const roomMessage = document.querySelector("#room-message");
 
 const labels = {
   virtual: "ヴァーチャルカルタモード",
@@ -35,9 +50,11 @@ const labels = {
   hyakunin: "上級：百人一首モード",
   source: "音源モード",
   recitation: "詠みあげモード",
+  solo: "ひとりで遊ぶ",
+  online: "オンライン対戦",
 };
 
-let selectedSettings = { playMode: "virtual", difficulty: "hyakunin", audioStyle: "recitation" };
+let selectedSettings = { playMode: "virtual", difficulty: "hyakunin", audioStyle: "recitation", matchType: "solo" };
 let activeSettings = null;
 let setupStep = 1;
 let questionOrder = [];
@@ -52,6 +69,13 @@ let nextQuestionId = null;
 let elapsedTimerId = null;
 let questionStartedAt = null;
 let boardSize = "medium";
+let onlineRoomCode = null;
+let onlineRoom = null;
+let onlineUser = null;
+let onlineUnsubscribe = null;
+let onlineAdvanceTimer = null;
+let onlineAudioTimer = null;
+let onlineQuestionIndex = -1;
 
 function shuffle(items) {
   const shuffled = [...items];
@@ -97,6 +121,10 @@ function audioPath(number) {
 
 function isVirtualMode() {
   return activeSettings?.playMode === "virtual";
+}
+
+function isOnlineMatch() {
+  return activeSettings?.matchType === "online";
 }
 
 function totalQuestions() {
@@ -154,6 +182,14 @@ function pointsForElapsedTime(seconds) {
   if (seconds <= 5) return 3;
   if (seconds <= 10) return 2;
   return 1;
+}
+
+function roomCode() {
+  return Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+}
+
+function playerName() {
+  return playerNameInput.value.trim().slice(0, 12) || "プレイヤー";
 }
 
 function renderCards() {
@@ -242,8 +278,47 @@ function finishVirtualQuestion(message) {
   nextQuestionId = window.setTimeout(moveToNextQuestion, NEXT_QUESTION_DELAY);
 }
 
+function markUsedCards(usedCards = {}) {
+  document.querySelectorAll(".card").forEach((card) => {
+    card.classList.toggle("is-answered", Boolean(usedCards[card.dataset.cardKey]));
+  });
+}
+
+function playOnlineQuestion() {
+  clearTimers();
+  window.clearTimeout(onlineAudioTimer);
+  currentAnswer = questionOrder[questionIndex];
+  onlineQuestionIndex = questionIndex;
+  updateStatus();
+  markUsedCards(onlineRoom?.usedCards);
+  setCardsEnabled(false);
+  replayButton.disabled = true;
+  audio.src = audioPath(currentAnswer);
+  audio.currentTime = 0;
+  const wait = Math.max(0, (onlineRoom?.startedAt || Date.now()) - Date.now());
+  setMessage(wait ? "全員そろって、まもなく読み上げが始まります…" : "読み上げを聞いて札を選んでください。");
+  onlineAudioTimer = window.setTimeout(() => {
+    canAnswer = true;
+    setCardsEnabled(true);
+    startElapsedTimer();
+    audio.play().catch(() => handleAudioError());
+  }, wait);
+}
+
+function submitOnlineAnswer(cardKey) {
+  if (!canAnswer || !onlineRoomCode || !onlineUser) return;
+  canAnswer = false;
+  setCardsEnabled(false);
+  const answerKey = cardForQuestion(currentAnswer).key;
+  answerRoom(onlineRoomCode, onlineUser.uid, cardKey, answerKey, pointsForElapsedTime(elapsedSeconds()));
+}
+
 function chooseCard(card, cardKey) {
   if (!canAnswer) return;
+  if (isOnlineMatch()) {
+    submitOnlineAnswer(cardKey);
+    return;
+  }
   if (cardKey === cardForQuestion(currentAnswer).key) {
     const earnedPoints = pointsForElapsedTime(elapsedSeconds());
     score += earnedPoints;
@@ -259,11 +334,20 @@ function chooseCard(card, cardKey) {
 
 function handleTimeout() {
   if (!canAnswer) return;
+  if (isOnlineMatch()) {
+    canAnswer = false;
+    setCardsEnabled(false);
+    if (onlineRoom?.hostUid === onlineUser?.uid) {
+      answerRoom(onlineRoomCode, onlineUser.uid, "timeout", cardForQuestion(currentAnswer).key, 0);
+    }
+    return;
+  }
   document.querySelector(`[data-card-key="${cardForQuestion(currentAnswer).key}"]`)?.classList.add("is-answered");
   finishVirtualQuestion(`時間切れ。正解は札 ${numberText(currentAnswer, 2)} でした。`);
 }
 
 function replayQuestion() {
+  if (isOnlineMatch()) return;
   if (!currentAnswer || nextQuestionId) return;
   window.clearInterval(countdownId);
   countdownId = null;
@@ -276,10 +360,22 @@ function replayQuestion() {
 }
 
 function startGame() {
-  activeSettings = { ...selectedSettings };
+  if (selectedSettings.matchType === "online") {
+    if (selectedSettings.playMode !== "virtual") {
+      window.alert("オンライン対戦はヴァーチャルカルタモードで遊べます。");
+      return;
+    }
+    openRoomLobby();
+    return;
+  }
+  setupGame({ ...selectedSettings }, shuffle(Array.from({ length: selectedSettings.difficulty === "karuta" ? KARUTA_QUESTIONS : HYAKUNIN_QUESTIONS }, (_, index) => index + 1)));
+}
+
+function setupGame(settings, order) {
+  activeSettings = settings;
   clearTimers();
   audio.pause();
-  questionOrder = shuffle(Array.from({ length: totalQuestions() }, (_, index) => index + 1));
+  questionOrder = order;
   questionIndex = 0;
   score = 0;
   correctAnswers = 0;
@@ -297,12 +393,135 @@ function startGame() {
   setBoardSize(boardSize);
   if (isVirtualMode()) renderCards(); else cardBoard.replaceChildren();
   updateStatus();
-  playQuestion();
+  if (isOnlineMatch()) playOnlineQuestion(); else playQuestion();
+}
+
+async function openRoomLobby() {
+  roomMessage.textContent = "Firebaseへ接続しています…";
+  roomDialog.showModal();
+  roomEntry.hidden = false;
+  roomWaiting.hidden = true;
+  try {
+    onlineUser = await signInForMatch();
+    roomMessage.textContent = "ルームを作るか、相手から受け取ったコードを入力してください。";
+  } catch (error) {
+    roomMessage.textContent = `接続できませんでした：${error.message}`;
+  }
+}
+
+function beginWatchingRoom(code) {
+  onlineUnsubscribe?.();
+  onlineRoomCode = code;
+  onlineUnsubscribe = watchRoom(code, (room) => syncOnlineRoom(room));
+}
+
+function renderRoomWaiting(room) {
+  roomEntry.hidden = true;
+  roomWaiting.hidden = false;
+  roomCodeDisplay.textContent = onlineRoomCode;
+  const players = Object.values(room.players || {});
+  roomPlayerList.textContent = `参加者（${players.length}/4）：${players.map((player) => player.name).join("、")}`;
+  roomStartButton.hidden = room.hostUid !== onlineUser?.uid;
+  roomStartButton.disabled = players.length < 2;
+  roomMessage.textContent = players.length < 2 ? "対戦相手の参加を待っています。" : "2人以上そろいました。ホストが開始できます。";
+}
+
+function syncOnlineRoom(room) {
+  if (!room) {
+    roomMessage.textContent = "ルームが見つかりません。";
+    return;
+  }
+  onlineRoom = room;
+  if (room.status === "waiting") {
+    renderRoomWaiting(room);
+    return;
+  }
+  if (room.status === "playing") {
+    roomDialog.close();
+    if (gameScreen.hidden) {
+      onlineQuestionIndex = -1;
+      setupGame(room.settings, room.order);
+      return;
+    }
+    score = room.players?.[onlineUser?.uid]?.score || 0;
+    scoreElement.textContent = score;
+    markUsedCards(room.usedCards);
+    if (room.phase === "playing" && onlineQuestionIndex !== room.index) {
+      questionIndex = room.index;
+      playOnlineQuestion();
+    }
+    if (room.phase === "resolving") {
+      canAnswer = false;
+      audio.pause();
+      stopElapsedTimer();
+      setCardsEnabled(false);
+      const answer = room.answer;
+      const result = answer.correct
+        ? `${room.players?.[answer.uid]?.name || "プレイヤー"}が正解！ ${answer.points}ポイント獲得です。`
+        : "不正解または時間切れです。";
+      setMessage(result);
+      if (room.hostUid === onlineUser?.uid) {
+        window.clearTimeout(onlineAdvanceTimer);
+        onlineAdvanceTimer = window.setTimeout(() => advanceRoom(onlineRoomCode, room.index), NEXT_QUESTION_DELAY);
+      }
+    }
+    return;
+  }
+  if (room.status === "finished") {
+    endGame();
+  }
+}
+
+async function createOnlineRoom() {
+  if (!onlineUser) return;
+  createRoomButton.disabled = true;
+  const code = roomCode();
+  const settings = { ...selectedSettings, matchType: "online" };
+  const room = {
+    hostUid: onlineUser.uid,
+    status: "waiting",
+    settings,
+    players: { [onlineUser.uid]: { name: playerName(), score: 0, correct: 0, connected: true } },
+    createdAt: Date.now(),
+  };
+  const created = await createRoom(code, room);
+  createRoomButton.disabled = false;
+  if (!created) return createOnlineRoom();
+  beginWatchingRoom(code);
+}
+
+async function joinOnlineRoom() {
+  if (!onlineUser) return;
+  const code = roomCodeInput.value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(code)) {
+    roomMessage.textContent = "6文字のルームコードを入力してください。";
+    return;
+  }
+  joinRoomButton.disabled = true;
+  const joined = await joinRoom(code, { uid: onlineUser.uid, name: playerName(), score: 0, correct: 0, connected: true });
+  joinRoomButton.disabled = false;
+  if (!joined) {
+    roomMessage.textContent = "参加できませんでした。コード、またはルームの空きを確認してください。";
+    return;
+  }
+  beginWatchingRoom(code);
+}
+
+function startOnlineRoom() {
+  if (onlineRoom?.hostUid !== onlineUser?.uid) return;
+  const order = shuffle(Array.from({ length: onlineRoom.settings.difficulty === "karuta" ? KARUTA_QUESTIONS : HYAKUNIN_QUESTIONS }, (_, index) => index + 1));
+  startRoom(onlineRoomCode, order);
 }
 
 function showSetup() {
   clearTimers();
+  window.clearTimeout(onlineAudioTimer);
+  window.clearTimeout(onlineAdvanceTimer);
   audio.pause();
+  onlineUnsubscribe?.();
+  onlineUnsubscribe = null;
+  onlineRoom = null;
+  onlineRoomCode = null;
   activeSettings = null;
   canAnswer = false;
   questionStartedAt = null;
@@ -343,6 +562,7 @@ function updateSetupScreen() {
     ["プレイモード", labels[selectedSettings.playMode]],
     ["難易度", labels[selectedSettings.difficulty]],
     ["音声", labels[selectedSettings.audioStyle]],
+    ["対戦形式", labels[selectedSettings.matchType]],
   ].map(([term, description]) => `<dt>${term}</dt><dd>${description}</dd>`).join("");
 }
 
@@ -357,7 +577,7 @@ document.querySelectorAll(".choice-button").forEach((button) => {
 
 document.querySelectorAll(".step-next").forEach((button) => {
   button.addEventListener("click", () => {
-    setupStep = Math.min(setupStep + 1, 4);
+    setupStep = Math.min(setupStep + 1, 5);
     updateSetupScreen();
   });
 });
@@ -393,5 +613,9 @@ nextButton.addEventListener("click", moveToNextQuestion);
 endButton.addEventListener("click", () => endGame(true));
 settingsButton.addEventListener("click", showSetup);
 restartButton.addEventListener("click", showSetup);
+createRoomButton.addEventListener("click", createOnlineRoom);
+joinRoomButton.addEventListener("click", joinOnlineRoom);
+roomStartButton.addEventListener("click", startOnlineRoom);
 
 updateSetupScreen();
+
