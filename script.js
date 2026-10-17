@@ -42,6 +42,7 @@ const roomStartButton = document.querySelector("#room-start-button");
 const roomCodeDisplay = document.querySelector("#room-code-display");
 const roomPlayerList = document.querySelector("#room-player-list");
 const roomMessage = document.querySelector("#room-message");
+const roomBackButton = document.querySelector("#room-back-button");
 
 const labels = {
   virtual: "ヴァーチャルカルタモード",
@@ -616,6 +617,7 @@ restartButton.addEventListener("click", showSetup);
 createRoomButton.addEventListener("click", createOnlineRoom);
 joinRoomButton.addEventListener("click", joinOnlineRoom);
 roomStartButton.addEventListener("click", startOnlineRoom);
+roomBackButton.addEventListener("click", () => roomDialog.close());
 
 updateSetupScreen();
 
