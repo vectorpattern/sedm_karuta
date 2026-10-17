@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEDM カルタ</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="hero" aria-label="SEDMカルタ"><img src="表紙1_黄色ベース.png" alt="Summer EDM かるた" /></section>
+
+      <section id="setup-screen" class="setup-screen" aria-labelledby="setup-title">
+        <p class="eyebrow">Game Setup</p>
+        <h1 id="setup-title">あそびかたを選ぼう</h1>
+        <section class="setup-step" data-step="1">
+          <h2>1. モードを選択</h2>
+          <div class="choice-grid">
+            <button class="choice-button is-selected" data-setting="playMode" data-value="virtual" type="button"><strong>ヴァーチャルカルタモード</strong><span>ブラウザ上の札を取って遊ぶ</span></button>
+            <button class="choice-button" data-setting="playMode" data-value="physical" type="button"><strong>現実カルタモード</strong><span>音声だけを再生する※実際の札を持つ方限定</span></button>
+          </div>
+          <button class="primary-button step-next" type="button">つぎへ</button>
+        </section>
+        <section class="setup-step" data-step="2" hidden>
+          <h2>2. 難易度を選択</h2>
+          <div class="choice-grid">
+            <button class="choice-button" data-setting="difficulty" data-value="karuta" type="button"><strong>初級：カルタモード</strong><span>すべての札を使ったカルタ</span></button>
+            <button class="choice-button is-selected" data-setting="difficulty" data-value="hyakunin" type="button"><strong>上級：百人一首モード</strong><span>上の句を聞き下の句の札を取る</span></button>
+          </div>
+          <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button class="primary-button step-next" type="button">つぎへ</button></div>
+        </section>
+        <section class="setup-step" data-step="3" hidden>
+          <h2>3. 音声を選択</h2>
+          <div class="choice-grid">
+            <button class="choice-button" data-setting="audioStyle" data-value="source" type="button"><strong>音源モード</strong><span>実際の曲を再生</span></button>
+            <button class="choice-button is-selected" data-setting="audioStyle" data-value="recitation" type="button"><strong>詠みあげモード</strong><span>百人一首のような詠みあげ音声を再生</span></button>
+          </div>
+          <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button class="primary-button step-next" type="button">つぎへ</button></div>
+        </section>
+        <section class="setup-step" data-step="4" hidden>
+          <h2>4. 設定を確認</h2>
+          <dl id="setting-summary" class="setting-summary"></dl>
+          <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button id="start-button" class="primary-button" type="button">ゲームを始める</button></div>
+        </section>
+      </section>
+
+      <section id="game-screen" hidden>
+        <section class="dashboard" aria-label="ゲーム状況">
+          <div class="status-item"><span>問題</span><strong id="round">0 / 37</strong></div>
+          <div id="score-status" class="status-item"><span>ポイント</span><strong id="score">0</strong></div>
+          <div id="timer-status" class="status-item timer"><span>経過時間</span><strong id="timer">--</strong></div>
+          <button id="replay-button" class="secondary-button" type="button" disabled>もう一度聞く</button>
+          <button id="next-button" class="secondary-button" type="button" disabled hidden>次の句へ</button>
+          <button id="end-button" class="secondary-button end-button" type="button" disabled>途中で終了</button>
+          <button id="settings-button" class="secondary-button" type="button">設定を変える</button>
+          <div id="board-size-control" class="board-size-control" aria-label="札サイズ">
+            <span>札サイズ</span>
+            <button class="is-selected" data-board-size="medium" type="button">中</button>
+            <button data-board-size="small" type="button">小</button>
+            <button data-board-size="large" type="button">大</button>
+          </div>
+        </section>
+        <section class="message-panel" aria-live="polite"><p id="message"></p></section>
+        <section id="card-board" class="card-board" aria-label="カルタ札"></section>
+      </section>
+    </main>
+    <dialog id="result-dialog" class="result-dialog">
+      <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
+    </dialog>
+    <audio id="reader" preload="auto"></audio>
+    <script src="script.js"></script>
+  </body>
+</html>
