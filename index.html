@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="game-shell">
-      <section class="hero" aria-label="SEDMカルタ"><img src="表紙1_黄色ベース.png" alt="Summer EDM かるた" /></section>
+      <section class="hero" aria-label="SEDMカルタ"><img src="assets/header.png" alt="Summer EDM かるた" /></section>
 
       <section id="setup-screen" class="setup-screen" aria-labelledby="setup-title">
         <p class="eyebrow">Game Setup</p>
@@ -55,6 +55,8 @@
       <section id="game-screen" hidden>
         <section class="dashboard" aria-label="ゲーム状況">
           <div class="status-item"><span>問題</span><strong id="round">0 / 37</strong></div>
+          <div id="remaining-status" class="status-item" hidden><span>残り札</span><strong id="remaining">0</strong></div>
+          <div id="taken-status" class="status-item" hidden><span>自分の取得札</span><strong id="taken">0</strong></div>
           <div id="score-status" class="status-item"><span>ポイント</span><strong id="score">0</strong></div>
           <div id="timer-status" class="status-item timer"><span>経過時間</span><strong id="timer">--</strong></div>
           <button id="replay-button" class="secondary-button" type="button" disabled>もう一度聞く</button>
@@ -90,6 +92,7 @@
           <p>ルームコード</p><strong id="room-code-display">------</strong>
           <p id="room-player-list"></p>
           <button id="room-start-button" class="primary-button" type="button" disabled>対戦を始める</button>
+          <button id="room-test-start-button" class="secondary-button" type="button" hidden>ひとりでテスト開始</button>
         </div>
         <p id="room-message"></p>
         <button id="room-back-button" class="text-button" type="button">戻る</button>

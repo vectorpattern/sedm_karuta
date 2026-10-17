@@ -63,7 +63,7 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 .card:disabled { cursor: default; }
 .card img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .card.is-answered { visibility: hidden; pointer-events: none; }
-.card.is-correct { border-color: #3d9757; }
+.card.is-correct, .card.is-revealed { z-index: 1; border-color: #f6d86b; box-shadow: 0 0 0 4px #fff6b0, 0 0 24px 8px #f0b847cc; animation: reveal-answer .9s ease-in-out infinite alternate; }
 .card.is-wrong { border-color: #bf4339; animation: shake .32s ease-in-out; }
 
 .controls { display: flex; justify-content: center; margin: 0 0 18px; }
@@ -83,6 +83,7 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 .room-dialog strong { letter-spacing: .14em; }
 
 @keyframes shake { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+@keyframes reveal-answer { to { transform: translateY(-5px) scale(1.04); filter: brightness(1.12); } }
 
 @media (max-width: 560px) {
   .game-shell { padding-top: 20px; }
