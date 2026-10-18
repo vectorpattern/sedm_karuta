@@ -23,7 +23,6 @@ const startButton = document.querySelector("#start-button");
 const replayButton = document.querySelector("#replay-button");
 const nextButton = document.querySelector("#next-button");
 const endButton = document.querySelector("#end-button");
-const settingsButton = document.querySelector("#settings-button");
 const boardSizeControl = document.querySelector("#board-size-control");
 const scoreStatus = document.querySelector("#score-status");
 const timerStatus = document.querySelector("#timer-status");
@@ -89,6 +88,7 @@ let onlineUnsubscribe = null;
 let onlineAdvanceTimer = null;
 let onlineAudioTimer = null;
 let onlineQuestionIndex = -1;
+let waitingForFirstAudio = false;
 
 function shuffle(items) {
   const shuffled = [...items];
@@ -283,10 +283,10 @@ function playQuestion() {
     canAnswer = true;
     setCardsEnabled(true);
     startElapsedTimer();
-    setMessage("読み上げの途中から札を選べます。読み終わり後は5秒以内に回答！");
+    setMessage(waitingForFirstAudio ? "Now loading..." : "読み上げの途中から札を選べます。読み終わり後は5秒以内に回答！");
   } else {
     canAnswer = false;
-    setMessage("実物の札を取りながら、読み上げを聞いてください。");
+    setMessage(waitingForFirstAudio ? "Now loading..." : "実物の札を取りながら、読み上げを聞いてください。");
   }
 
   audio.play().catch(() => handleAudioError());
@@ -360,7 +360,7 @@ function playOnlineQuestion() {
   audio.src = audioPath(currentAnswer);
   audio.currentTime = 0;
   const wait = Math.max(0, (onlineRoom?.startedAt || Date.now()) - Date.now());
-  setMessage(wait ? "全員そろって、まもなく読み上げが始まります…" : "読み上げを聞いて札を選んでください。");
+  setMessage(waitingForFirstAudio ? "Now loading..." : wait ? "全員そろって、まもなく読み上げが始まります…" : "読み上げを聞いて札を選んでください。");
   onlineAudioTimer = window.setTimeout(() => {
     canAnswer = !onlineRoom?.mistakes?.[onlineUser?.uid] && (onlineRoom?.blockedThrough?.[onlineUser?.uid] ?? -1) < questionIndex;
     setCardsEnabled(canAnswer);
@@ -409,7 +409,13 @@ function handleTimeout() {
 }
 
 function replayQuestion() {
-  if (isOnlineMatch()) return;
+  if (isOnlineMatch()) {
+    if (!currentAnswer || onlineRoom?.phase !== "playing") return;
+    audio.currentTime = 0;
+    replayButton.disabled = true;
+    audio.play().catch(() => handleAudioError());
+    return;
+  }
   if (!currentAnswer || nextQuestionId) return;
   window.clearInterval(countdownId);
   countdownId = null;
@@ -445,6 +451,8 @@ async function setupGame(settings, order) {
   questionStartedAt = null;
   setupScreen.hidden = true;
   gameScreen.hidden = false;
+  waitingForFirstAudio = true;
+  setMessage("Now loading...");
   resultDialog.close();
   endButton.disabled = false;
   scoreStatus.hidden = !isVirtualMode();
@@ -697,6 +705,16 @@ document.querySelectorAll("[data-board-size]").forEach((button) => {
   button.addEventListener("click", () => setBoardSize(button.dataset.boardSize));
 });
 
+audio.addEventListener("playing", () => {
+  if (!waitingForFirstAudio) return;
+  waitingForFirstAudio = false;
+  setMessage(isOnlineMatch()
+    ? "読み上げを聞いて札を選んでください。"
+    : isVirtualMode()
+      ? "読み上げの途中から札を選べます。読み終わり後は5秒以内に回答！"
+      : "実物の札を取りながら、読み上げを聞いてください。");
+});
+
 audio.addEventListener("ended", () => {
   replayButton.disabled = false;
   if (isOnlineMatch()) {
@@ -718,7 +736,6 @@ startButton.addEventListener("click", startGame);
 replayButton.addEventListener("click", replayQuestion);
 nextButton.addEventListener("click", moveToNextQuestion);
 endButton.addEventListener("click", () => endGame(true));
-settingsButton.addEventListener("click", showSetup);
 restartButton.addEventListener("click", showSetup);
 createRoomButton.addEventListener("click", () => runRoomAction(createOnlineRoom));
 joinRoomButton.addEventListener("click", () => runRoomAction(joinOnlineRoom));
