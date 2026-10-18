@@ -47,6 +47,7 @@ export function startRoom(roomCode, order) {
     order,
     index: 0,
     answer: null,
+    mistakes: {},
     usedCards: {},
     startedAt: Date.now() + 1500,
   });
@@ -60,18 +61,28 @@ export function advanceRoom(roomCode, expectedIndex) {
       room.phase = "finished";
       return room;
     }
+    if (room.answer?.correct === false) room.blockedThrough = {};
     room.index += 1;
     room.phase = "playing";
     room.answer = null;
+    room.mistakes = {};
     room.startedAt = Date.now() + 1500;
     return room;
   });
 }
 
-export function answerRoom(roomCode, uid, cardKey, answerKey, points) {
+export function answerRoom(roomCode, uid, cardKey, answerKey, points, expectedIndex) {
   return runTransaction(roomRef(roomCode), (room) => {
-    if (!room || room.status !== "playing" || room.phase !== "playing") return;
+    if (!room || room.status !== "playing" || room.phase !== "playing" || room.index !== expectedIndex || !room.players?.[uid] || room.mistakes?.[uid] || (room.blockedThrough?.[uid] ?? -1) >= room.index) return;
     const correct = cardKey === answerKey;
+    if (!correct) {
+      room.mistakes ||= {};
+      room.mistakes[uid] = true;
+      room.blockedThrough ||= {};
+      room.blockedThrough[uid] = room.index + 1;
+      const players = Object.entries(room.players).filter(([, player]) => player.connected !== false);
+      if (!players.every(([playerUid]) => room.mistakes[playerUid] || (room.blockedThrough?.[playerUid] ?? -1) >= room.index)) return room;
+    }
     room.phase = "resolving";
     room.answer = { uid, cardKey, answerKey, correct, points: correct ? points : 0 };
     room.usedCards ||= {};
