@@ -40,7 +40,7 @@
         <section class="setup-step" data-step="4" hidden>
           <h2>4. 対戦形式を選択</h2>
           <div class="choice-grid">
-            <button class="choice-button is-selected" data-setting="matchType" data-value="solo" type="button"><strong>ひとりで遊ぶ</strong><span>これまでどおり、一人で練習する</span></button>
+            <button class="choice-button is-selected" data-setting="matchType" data-value="solo" type="button"><strong>タイムトライアル</strong><span>制限時間内に札を取りまくって高得点を目指せ！</span></button>
             <button class="choice-button" data-setting="matchType" data-value="online" type="button"><strong>オンライン対戦</strong><span>ルームコードで2〜4人の対戦をする</span></button>
           </div>
           <div class="step-actions"><button class="text-button step-back" type="button">もどる</button><button class="primary-button step-next" type="button">つぎへ</button></div>
@@ -87,6 +87,8 @@
           <p>または</p>
           <label class="room-label">ルームコード<input id="room-code-input" maxlength="6" placeholder="例：AB12CD" /></label>
           <button id="join-room-button" class="secondary-button" type="button">ルームに参加</button>
+          <p>相手なしで動作確認する場合</p>
+          <button id="room-entry-test-button" class="secondary-button" type="button">ひとりでテスト開始</button>
         </div>
         <div id="room-waiting" hidden>
           <p>ルームコード</p><strong id="room-code-display">------</strong>

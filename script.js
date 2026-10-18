@@ -63,7 +63,7 @@ const labels = {
   hyakunin: "上級：百人一首モード",
   source: "音源モード",
   recitation: "詠みあげモード",
-  solo: "ひとりで遊ぶ",
+  solo: "タイムトライアル",
   online: "オンライン対戦",
 };
 
@@ -271,6 +271,7 @@ function startCountdown() {
 
 function playQuestion() {
   clearTimers();
+  document.querySelectorAll(".card.is-wrong").forEach((card) => card.classList.remove("is-wrong"));
   currentAnswer = questionOrder[questionIndex];
   updateStatus();
   replayButton.disabled = true;
@@ -652,12 +653,16 @@ function endGame(endedEarly = false) {
 }
 
 function updateSetupScreen() {
+  document.querySelectorAll(".choice-button").forEach((button) => {
+    button.classList.toggle("is-selected", selectedSettings[button.dataset.setting] === button.dataset.value);
+  });
   setupSteps.forEach((step) => { step.hidden = Number(step.dataset.step) !== setupStep; });
+  document.querySelector('[data-step="5"] h2').textContent = selectedSettings.playMode === "physical" ? "4. 設定を確認" : "5. 設定を確認";
   settingSummary.innerHTML = [
     ["プレイモード", labels[selectedSettings.playMode]],
     ["難易度", labels[selectedSettings.difficulty]],
     ["音声", labels[selectedSettings.audioStyle]],
-    ["対戦形式", labels[selectedSettings.matchType]],
+    ...(selectedSettings.playMode === "physical" ? [] : [["対戦形式", labels[selectedSettings.matchType]]]),
   ].map(([term, description]) => `<dt>${term}</dt><dd>${description}</dd>`).join("");
 }
 
@@ -665,6 +670,7 @@ document.querySelectorAll(".choice-button").forEach((button) => {
   button.addEventListener("click", () => {
     startBackgroundMusic();
     selectedSettings[button.dataset.setting] = button.dataset.value;
+    if (selectedSettings.playMode === "physical") selectedSettings.matchType = "solo";
     document.querySelectorAll(`[data-setting="${button.dataset.setting}"]`).forEach((item) => {
       item.classList.toggle("is-selected", item === button);
     });
@@ -674,7 +680,7 @@ document.querySelectorAll(".choice-button").forEach((button) => {
 document.querySelectorAll(".step-next").forEach((button) => {
   button.addEventListener("click", () => {
     startBackgroundMusic();
-    setupStep = Math.min(setupStep + 1, 5);
+    setupStep = selectedSettings.playMode === "physical" && setupStep === 3 ? 5 : Math.min(setupStep + 1, 5);
     updateSetupScreen();
   });
 });
@@ -682,7 +688,7 @@ document.querySelectorAll(".step-next").forEach((button) => {
 document.querySelectorAll(".step-back").forEach((button) => {
   button.addEventListener("click", () => {
     startBackgroundMusic();
-    setupStep = Math.max(setupStep - 1, 1);
+    setupStep = selectedSettings.playMode === "physical" && setupStep === 5 ? 3 : Math.max(setupStep - 1, 1);
     updateSetupScreen();
   });
 });
