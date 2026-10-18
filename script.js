@@ -89,6 +89,8 @@ let onlineAdvanceTimer = null;
 let onlineAudioTimer = null;
 let onlineQuestionIndex = -1;
 let waitingForFirstAudio = false;
+let gameSession = 0;
+let revealTimerId = null;
 
 function shuffle(items) {
   const shuffled = [...items];
@@ -145,6 +147,8 @@ function playStartSound() {
 }
 
 function clearTimers() {
+  window.clearTimeout(revealTimerId);
+  revealTimerId = null;
   window.clearInterval(countdownId);
   window.clearTimeout(nextQuestionId);
   window.clearInterval(elapsedTimerId);
@@ -335,7 +339,7 @@ function revealCorrectCard(message, selectedCard = null) {
   selectedCard?.classList.add("is-wrong");
   answerCard?.classList.add("is-revealed");
   playSound(wrongSound);
-  window.setTimeout(() => {
+  revealTimerId = window.setTimeout(() => {
     answerCard?.classList.remove("is-revealed");
     answerCard?.classList.add("is-answered");
     finishVirtualQuestion(message);
@@ -440,6 +444,7 @@ function startGame() {
 }
 
 async function setupGame(settings, order) {
+  const session = ++gameSession;
   activeSettings = settings;
   clearTimers();
   audio.pause();
@@ -466,6 +471,7 @@ async function setupGame(settings, order) {
   if (isVirtualMode()) renderCards(); else cardBoard.replaceChildren();
   updateStatus();
   await playStartSound();
+  if (session !== gameSession || gameScreen.hidden) return;
   if (isOnlineMatch()) playOnlineQuestion(); else playQuestion();
 }
 
@@ -617,6 +623,9 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  gameSession += 1;
+  waitingForFirstAudio = false;
+  startSound.pause();
   clearTimers();
   window.clearTimeout(onlineAudioTimer);
   window.clearTimeout(onlineAdvanceTimer);
@@ -637,7 +646,14 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  gameSession += 1;
+  waitingForFirstAudio = false;
+  startSound.pause();
   clearTimers();
+  window.clearTimeout(onlineAudioTimer);
+  window.clearTimeout(onlineAdvanceTimer);
+  onlineUnsubscribe?.();
+  onlineUnsubscribe = null;
   audio.pause();
   canAnswer = false;
   endButton.disabled = true;
