@@ -1,6 +1,6 @@
 import {
   answerRoom, advanceRoom, createRoom, joinRoom, signInForMatch, startRoom, watchRoom,
-} from "./firebase-client.js";
+} from "./firebase-client.js?v=20261020-join2";
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -592,12 +592,8 @@ async function joinOnlineRoom() {
     return;
   }
   joinRoomButton.disabled = true;
-  const joined = await joinRoom(code, { uid: onlineUser.uid, name: playerName(), score: 0, correct: 0, connected: true });
+  await joinRoom(code, { uid: onlineUser.uid, name: playerName(), score: 0, correct: 0, connected: true });
   joinRoomButton.disabled = false;
-  if (!joined) {
-    roomMessage.textContent = "参加できませんでした。コード、またはルームの空きを確認してください。";
-    return;
-  }
   beginWatchingRoom(code);
 }
 
