@@ -8,6 +8,12 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const database = getDatabase(app);
+let clockOffset = 0;
+onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => { clockOffset = snapshot.val() || 0; });
+
+export function serverNow() {
+  return Date.now() + clockOffset;
+}
 
 export async function signInForMatch() {
   if (auth.currentUser) return auth.currentUser;
@@ -53,16 +59,18 @@ export function watchRoom(roomCode, callback) {
   return onValue(roomRef(roomCode), (snapshot) => callback(snapshot.val()));
 }
 
-export function startRoom(roomCode, order) {
+export function startRoom(roomCode, order, boardOrder) {
   return update(roomRef(roomCode), {
     status: "playing",
-    phase: "playing",
+    phase: "preparing",
+    ready: {},
     order,
+    boardOrder,
     index: 0,
     answer: null,
     mistakes: {},
     usedCards: {},
-    startedAt: Date.now() + 1500,
+    startedAt: 0,
   });
 }
 
@@ -76,12 +84,27 @@ export function advanceRoom(roomCode, expectedIndex) {
     }
     if (room.answer?.correct === false) room.blockedThrough = {};
     room.index += 1;
-    room.phase = "playing";
+    room.phase = "preparing";
+    room.ready = {};
     room.answer = null;
     room.mistakes = {};
-    room.startedAt = Date.now() + 1500;
+    room.startedAt = 0;
     return room;
   });
+}
+
+export function readyRoom(roomCode, uid, expectedIndex) {
+  return runTransaction(roomRef(roomCode), (room) => {
+    if (!room || room.status !== "playing" || room.phase !== "preparing" || room.index !== expectedIndex || !room.players?.[uid]) return;
+    room.ready ||= {};
+    room.ready[uid] = true;
+    const players = Object.entries(room.players).filter(([, player]) => player.connected !== false);
+    if (players.every(([playerUid]) => room.ready[playerUid])) {
+      room.phase = "playing";
+      room.startedAt = serverNow() + 3000;
+    }
+    return room;
+  }, { applyLocally: false });
 }
 
 export function answerRoom(roomCode, uid, cardKey, answerKey, points, expectedIndex) {
@@ -105,7 +128,7 @@ export function answerRoom(roomCode, uid, cardKey, answerKey, points, expectedIn
       room.players[uid].correct = (room.players[uid].correct || 0) + 1;
     }
     return room;
-  });
+  }, { applyLocally: false });
 }
 
 export function leaveRoom(roomCode, uid) {

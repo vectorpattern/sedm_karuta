@@ -13,6 +13,7 @@
       <section id="setup-screen" class="setup-screen" aria-labelledby="setup-title">
         <p class="eyebrow">Game Setup</p>
         <h1 id="setup-title">あそびかたを選ぼう</h1>
+        <button id="home-join-button" class="secondary-button" type="button">ルームコードでオンライン対戦に参加</button>
         <section class="setup-step" data-step="1">
           <h2>1. モードを選択</h2>
           <div class="choice-grid">
@@ -64,17 +65,18 @@
           <button id="end-button" class="secondary-button end-button" type="button" disabled>途中で終了</button>
           <div id="board-size-control" class="board-size-control" aria-label="札サイズ">
             <span>札サイズ</span>
-            <button class="is-selected" data-board-size="medium" type="button">中</button>
-            <button data-board-size="small" type="button">小</button>
+            <button data-board-size="medium" type="button">中</button>
+            <button class="is-selected" data-board-size="small" type="button">小</button>
             <button data-board-size="large" type="button">大</button>
           </div>
         </section>
         <section class="message-panel" aria-live="polite"><p id="message"></p></section>
+        <section id="online-players" class="online-players" aria-label="参加者の取得枚数" hidden></section>
         <section id="card-board" class="card-board" aria-label="カルタ札"></section>
       </section>
     </main>
     <dialog id="result-dialog" class="result-dialog">
-      <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
+      <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><ol id="result-ranking" hidden></ol><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
     </dialog>
     <dialog id="room-dialog" class="result-dialog room-dialog">
       <div>
@@ -100,6 +102,6 @@
       </div>
     </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script type="module" src="script.js?v=20261020-join2"></script>
+    <script type="module" src="script.js?v=20261021-match"></script>
   </body>
 </html>
