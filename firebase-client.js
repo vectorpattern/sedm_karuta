@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
-  getDatabase, onValue, ref, runTransaction, serverTimestamp, set, update,
+  get, getDatabase, onValue, ref, runTransaction, serverTimestamp, set, update,
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -27,12 +27,25 @@ export async function createRoom(roomCode, room) {
 
 export async function joinRoom(roomCode, player) {
   const reference = roomRef(roomCode);
+  const snapshot = await get(reference);
+  if (!snapshot.exists()) throw new Error("ルームが見つかりません。作成者の画面に表示されているコードを確認してください。");
+  const { uid, ...playerData } = player;
+  let failure = "参加できませんでした。もう一度お試しください。";
   const result = await runTransaction(reference, (room) => {
-    if (!room || room.status !== "waiting" || Object.keys(room.players || {}).length >= 4) return;
+    if (!room) return null;
+    if (room.status !== "waiting") {
+      failure = "このルームは開始済み、または終了しています。新しいルームを作ってください。";
+      return;
+    }
+    if (!room.players?.[uid] && Object.keys(room.players || {}).length >= 4) {
+      failure = "このルームは満室です（最大4人）。";
+      return;
+    }
     room.players ||= {};
-    room.players[player.uid] = player;
+    room.players[uid] = room.players[uid] ? { ...room.players[uid], connected: true } : playerData;
     return room;
   });
+  if (!result.committed || !result.snapshot.val()?.players?.[uid]) throw new Error(failure);
   return result.committed;
 }
 

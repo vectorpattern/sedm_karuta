@@ -585,8 +585,8 @@ async function createOnlineRoom(testMode = false) {
 }
 
 async function joinOnlineRoom() {
-  if (!onlineUser) return;
-  const code = roomCodeInput.value.trim().toUpperCase();
+  if (!onlineUser) onlineUser = await signInForMatch();
+  const code = roomCodeInput.value.normalize("NFKC").replace(/\s/g, "").toUpperCase();
   if (!/^[A-Z0-9]{6}$/.test(code)) {
     roomMessage.textContent = "6文字のルームコードを入力してください。";
     return;
