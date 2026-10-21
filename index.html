@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="game-shell">
-      <section class="hero" aria-label="SEDMカルタ"><img src="assets/header.png" alt="Summer EDM かるた" /></section>
+      <section class="hero" aria-label="SEDMカルタ"><img src="assets/header.png?v=20261022" alt="浮世絵風 Summer EDM かるた" /></section>
 
       <section id="setup-screen" class="setup-screen" aria-labelledby="setup-title">
         <p class="eyebrow">Game Setup</p>
@@ -85,8 +85,7 @@
         <div id="room-entry">
           <label id="player-name-label" class="room-label">表示名<input id="player-name" maxlength="12" value="プレイヤー" /></label>
           <button id="create-room-button" class="primary-button" type="button">ルームを作る</button>
-          <p id="room-entry-divider">または</p>
-          <label class="room-label">ルームコード<input id="room-code-input" maxlength="6" placeholder="例：AB12CD" /></label>
+          <label id="room-code-label" class="room-label">ルームコード<input id="room-code-input" maxlength="6" placeholder="例：AB12CD" /></label>
           <button id="join-room-button" class="secondary-button" type="button">ルームに参加</button>
         </div>
         <div id="room-waiting" hidden>
@@ -99,6 +98,6 @@
       </div>
     </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script type="module" src="script.js?v=20261021-match2"></script>
+    <script type="module" src="script.js?v=20261022-lobby"></script>
   </body>
 </html>
