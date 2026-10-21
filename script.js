@@ -1,6 +1,6 @@
 import {
-  answerRoom, advanceRoom, createRoom, joinRoom, readyRoom, serverNow, signInForMatch, startRoom, watchRoom,
-} from "./firebase-client.js?v=20261021-match";
+  answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, joinRoom, leaveRoom, readyRoom, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
+} from "./firebase-client.js?v=20261021-match2";
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -48,8 +48,6 @@ const roomCodeInput = document.querySelector("#room-code-input");
 const createRoomButton = document.querySelector("#create-room-button");
 const joinRoomButton = document.querySelector("#join-room-button");
 const roomStartButton = document.querySelector("#room-start-button");
-const roomTestStartButton = document.querySelector("#room-test-start-button");
-const roomEntryTestButton = document.querySelector("#room-entry-test-button");
 const roomCodeDisplay = document.querySelector("#room-code-display");
 const roomPlayerList = document.querySelector("#room-player-list");
 const roomMessage = document.querySelector("#room-message");
@@ -94,12 +92,13 @@ let revealTimerId = null;
 let onlineResolvedIndex = -1;
 let onlinePreparedIndex = -1;
 let onlineSetupPending = false;
+let presenceUnsubscribe = null;
 const onlinePlayers = document.querySelector("#online-players");
 const resultRanking = document.querySelector("#result-ranking");
 
 function renderOnlinePlayers() {
   onlinePlayers.replaceChildren();
-  Object.entries(onlineRoom?.players || {}).forEach(([uid, player]) => {
+  Object.entries(onlineRoom?.players || {}).sort(([firstUid], [secondUid]) => Number(secondUid === onlineUser?.uid) - Number(firstUid === onlineUser?.uid)).forEach(([uid, player]) => {
     const item = document.createElement("p");
     const resting = (onlineRoom.blockedThrough?.[uid] ?? -1) >= onlineRoom.index;
     item.textContent = `${player.name}${uid === onlineUser?.uid ? "（自分）" : ""}：${player.correct || 0}枚${resting ? " ／ お手つき・お休み" : ""}`;
@@ -516,14 +515,17 @@ async function setupGame(settings, order) {
   if (isOnlineMatch()) playOnlineQuestion(); else playQuestion();
 }
 
-async function openRoomLobby() {
+async function openRoomLobby(joinOnly = false) {
   roomMessage.textContent = "Firebaseへ接続しています…";
   roomDialog.showModal();
   roomEntry.hidden = false;
   roomWaiting.hidden = true;
+  createRoomButton.hidden = joinOnly;
+  document.querySelector("#player-name-label").hidden = joinOnly;
+  document.querySelector("#room-entry-divider").hidden = joinOnly;
   try {
     onlineUser = await signInForMatch();
-    roomMessage.textContent = "ルームを作るか、相手から受け取ったコードを入力してください。";
+    roomMessage.textContent = joinOnly ? "相手から受け取ったルームコードを入力してください。" : "ルームを作るか、相手から受け取ったコードを入力してください。";
   } catch (error) {
     roomMessage.textContent = `接続できませんでした：${error.message}`;
   }
@@ -531,6 +533,8 @@ async function openRoomLobby() {
 
 function beginWatchingRoom(code) {
   onlineUnsubscribe?.();
+  presenceUnsubscribe?.();
+  presenceUnsubscribe = watchPresence(code, onlineUser.uid, (error) => { roomMessage.textContent = `接続状態を登録できませんでした：${error.message}`; });
   onlineRoomCode = code;
   onlineUnsubscribe = watchRoom(code, (room) => syncOnlineRoom(room));
 }
@@ -542,7 +546,6 @@ function renderRoomWaiting(room) {
   const players = Object.values(room.players || {});
   roomPlayerList.textContent = `参加者（${players.length}/4）：${players.map((player) => player.name).join("、")}`;
   roomStartButton.hidden = room.hostUid !== onlineUser?.uid;
-  roomTestStartButton.hidden = room.hostUid !== onlineUser?.uid;
   roomStartButton.disabled = players.length < 2;
   roomMessage.textContent = players.length < 2 ? "対戦相手の参加を待っています。" : "2人以上そろいました。ホストが開始できます。";
 }
@@ -553,6 +556,13 @@ function syncOnlineRoom(room) {
     return;
   }
   onlineRoom = room;
+  if (room.status === "playing" && Object.values(room.players || {}).some((player) => player.connected === false)) {
+    audio.pause();
+    canAnswer = false;
+    setCardsEnabled(false);
+    finishIfPlayerLeft(onlineRoomCode).catch(() => setMessage("退出による終了処理に失敗しました。"));
+    return;
+  }
   if (room.status === "waiting") {
     renderRoomWaiting(room);
     return;
@@ -600,7 +610,7 @@ function syncOnlineRoom(room) {
       setMessage(result);
       if (onlineResolvedIndex !== room.index) {
         onlineResolvedIndex = room.index;
-        if (answer.correct && answer.uid === onlineUser?.uid) playSound(correctSound);
+        if (answer.correct) playSound(answer.uid === onlineUser?.uid ? correctSound : wrongSound);
         window.clearTimeout(onlineAdvanceTimer);
         onlineAdvanceTimer = window.setTimeout(() => advanceRoom(onlineRoomCode, room.index).catch(() => setMessage("次の問題への通信に失敗しました。")), NEXT_QUESTION_DELAY);
       }
@@ -613,7 +623,7 @@ function syncOnlineRoom(room) {
   }
 }
 
-async function createOnlineRoom(testMode = false) {
+async function createOnlineRoom() {
   if (!onlineUser) onlineUser = await signInForMatch();
   createRoomButton.disabled = true;
   const code = roomCode();
@@ -627,12 +637,8 @@ async function createOnlineRoom(testMode = false) {
   };
   const created = await createRoom(code, room);
   createRoomButton.disabled = false;
-  if (!created) return createOnlineRoom(testMode);
+  if (!created) return createOnlineRoom();
   beginWatchingRoom(code);
-  if (testMode) {
-    const order = shuffle(Array.from({ length: settings.difficulty === "karuta" ? KARUTA_QUESTIONS : HYAKUNIN_QUESTIONS }, (_, index) => index + 1));
-    await startRoom(code, order, shuffle([...order]));
-  }
 }
 
 async function joinOnlineRoom() {
@@ -665,11 +671,12 @@ async function runRoomAction(action) {
   } finally {
     createRoomButton.disabled = false;
     joinRoomButton.disabled = false;
-    roomEntryTestButton.disabled = false;
   }
 }
 
 function showSetup() {
+  presenceUnsubscribe?.();
+  presenceUnsubscribe = null;
   gameSession += 1;
   waitingForFirstAudio = false;
   startSound.pause();
@@ -693,6 +700,8 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  presenceUnsubscribe?.();
+  presenceUnsubscribe = null;
   gameSession += 1;
   waitingForFirstAudio = false;
   startSound.pause();
@@ -710,7 +719,9 @@ function endGame(endedEarly = false) {
     resultTitle.textContent = endedEarly ? "対戦を退出しました" : "結果発表";
     resultLabel.textContent = "自分の取得札";
     finalScoreElement.textContent = `${correctAnswers} 枚`;
-    resultMessageElement.textContent = endedEarly ? "退出時点の順位です。" : "取得枚数による順位です。";
+    resultMessageElement.textContent = onlineRoom?.finishReason === "player-left"
+      ? `${onlineRoom.departedName || "参加者"}が退出したため対戦を終了しました。終了時点の順位です。`
+      : endedEarly ? "退出時点の順位です。" : "取得枚数による順位です。";
     resultRanking.replaceChildren();
     const players = Object.entries(onlineRoom?.players || {}).sort(([, first], [, second]) => (second.correct || 0) - (first.correct || 0));
     let rank = 0;
@@ -814,20 +825,42 @@ audio.addEventListener("error", () => {
 });
 
 startButton.addEventListener("click", startGame);
-document.querySelector("#home-join-button").addEventListener("click", openRoomLobby);
+document.querySelector("#home-join-button").addEventListener("click", () => openRoomLobby(true));
 replayButton.addEventListener("click", replayQuestion);
 nextButton.addEventListener("click", moveToNextQuestion);
-endButton.addEventListener("click", () => endGame(true));
+endButton.addEventListener("click", async () => {
+  if (!isOnlineMatch()) return endGame(true);
+  endButton.disabled = true;
+  presenceUnsubscribe?.();
+  presenceUnsubscribe = null;
+  try {
+    await leaveRoom(onlineRoomCode, onlineUser.uid);
+    await finishIfPlayerLeft(onlineRoomCode);
+  } catch {
+    endButton.disabled = false;
+    setMessage("退出を送信できませんでした。もう一度お試しください。");
+  }
+});
 restartButton.addEventListener("click", showSetup);
 createRoomButton.addEventListener("click", () => runRoomAction(createOnlineRoom));
 joinRoomButton.addEventListener("click", () => runRoomAction(joinOnlineRoom));
 roomStartButton.addEventListener("click", () => runRoomAction(startOnlineRoom));
-roomTestStartButton.addEventListener("click", () => runRoomAction(startOnlineRoom));
-roomEntryTestButton.addEventListener("click", () => {
-  roomEntryTestButton.disabled = true;
-  runRoomAction(() => createOnlineRoom(true));
+roomBackButton.addEventListener("click", async () => {
+  if (onlineRoomCode && onlineUser) {
+    presenceUnsubscribe?.();
+    presenceUnsubscribe = null;
+    onlineUnsubscribe?.();
+    onlineUnsubscribe = null;
+    await leaveRoom(onlineRoomCode, onlineUser.uid).catch(() => undefined);
+    onlineRoomCode = null;
+    onlineRoom = null;
+  }
+  roomDialog.close();
 });
-roomBackButton.addEventListener("click", () => roomDialog.close());
+roomDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  roomBackButton.click();
+});
 
 updateSetupScreen();
 

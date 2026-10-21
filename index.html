@@ -83,25 +83,22 @@
         <p class="eyebrow">Online Match</p>
         <h2>オンライン対戦</h2>
         <div id="room-entry">
-          <label class="room-label">表示名<input id="player-name" maxlength="12" value="プレイヤー" /></label>
+          <label id="player-name-label" class="room-label">表示名<input id="player-name" maxlength="12" value="プレイヤー" /></label>
           <button id="create-room-button" class="primary-button" type="button">ルームを作る</button>
-          <p>または</p>
+          <p id="room-entry-divider">または</p>
           <label class="room-label">ルームコード<input id="room-code-input" maxlength="6" placeholder="例：AB12CD" /></label>
           <button id="join-room-button" class="secondary-button" type="button">ルームに参加</button>
-          <p>相手なしで動作確認する場合</p>
-          <button id="room-entry-test-button" class="secondary-button" type="button">ひとりでテスト開始</button>
         </div>
         <div id="room-waiting" hidden>
           <p>ルームコード</p><strong id="room-code-display">------</strong>
           <p id="room-player-list"></p>
           <button id="room-start-button" class="primary-button" type="button" disabled>対戦を始める</button>
-          <button id="room-test-start-button" class="secondary-button" type="button" hidden>ひとりでテスト開始</button>
         </div>
         <p id="room-message"></p>
         <button id="room-back-button" class="text-button" type="button">戻る</button>
       </div>
     </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script type="module" src="script.js?v=20261021-match"></script>
+    <script type="module" src="script.js?v=20261021-match2"></script>
   </body>
 </html>

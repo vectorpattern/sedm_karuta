@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
-  get, getDatabase, onValue, ref, runTransaction, serverTimestamp, set, update,
+  get, getDatabase, onDisconnect, onValue, ref, runTransaction, serverTimestamp, set, update,
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -133,6 +133,32 @@ export function answerRoom(roomCode, uid, cardKey, answerKey, points, expectedIn
 
 export function leaveRoom(roomCode, uid) {
   return update(roomRef(roomCode), { [`players/${uid}/connected`]: false });
+}
+
+export function watchPresence(roomCode, uid, onError) {
+  return onValue(ref(database, ".info/connected"), async (snapshot) => {
+    if (snapshot.val() !== true) return;
+    try {
+      const connectedRef = ref(database, `rooms/${roomCode}/players/${uid}/connected`);
+      await onDisconnect(connectedRef).set(false);
+      await set(connectedRef, true);
+    } catch (error) {
+      onError(error);
+    }
+  });
+}
+
+export function finishIfPlayerLeft(roomCode) {
+  return runTransaction(roomRef(roomCode), (room) => {
+    if (!room || room.status !== "playing") return;
+    const departed = Object.entries(room.players || {}).find(([, player]) => player.connected === false);
+    if (!departed) return;
+    room.status = "finished";
+    room.phase = "finished";
+    room.finishReason = "player-left";
+    room.departedName = departed[1].name;
+    return room;
+  }, { applyLocally: false });
 }
 
 export { serverTimestamp, set };
