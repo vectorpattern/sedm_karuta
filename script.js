@@ -522,10 +522,11 @@ async function openRoomLobby(joinOnly = false) {
   roomWaiting.hidden = true;
   createRoomButton.hidden = joinOnly;
   document.querySelector("#player-name-label").hidden = joinOnly;
-  document.querySelector("#room-entry-divider").hidden = joinOnly;
+  document.querySelector("#room-code-label").hidden = !joinOnly;
+  joinRoomButton.hidden = !joinOnly;
   try {
     onlineUser = await signInForMatch();
-    roomMessage.textContent = joinOnly ? "相手から受け取ったルームコードを入力してください。" : "ルームを作るか、相手から受け取ったコードを入力してください。";
+    roomMessage.textContent = joinOnly ? "相手から受け取ったルームコードを入力してください。" : "表示名を入力してルームを作ってください。相手のルームに参加する場合は、スタート画面へ戻ってください。";
   } catch (error) {
     roomMessage.textContent = `接続できませんでした：${error.message}`;
   }
