@@ -95,6 +95,68 @@ let onlineSetupPending = false;
 let presenceUnsubscribe = null;
 const onlinePlayers = document.querySelector("#online-players");
 const resultRanking = document.querySelector("#result-ranking");
+const trialRankingDialog = document.querySelector("#trial-ranking-dialog");
+const trialRankingForm = document.querySelector("#trial-ranking-form");
+const trialRankingList = document.querySelector("#trial-ranking-list");
+const trialRankingName = document.querySelector("#trial-ranking-name");
+const trialRankingMessage = document.querySelector("#trial-ranking-message");
+let trialResult = null;
+
+function trialRankingKey() {
+  return `sedm-ranking-v1-${trialResult.difficulty}-${trialResult.audioStyle}`;
+}
+
+function readTrialRanking() {
+  try {
+    const entries = JSON.parse(localStorage.getItem(trialRankingKey()) || "[]");
+    if (!Array.isArray(entries)) return [];
+    return entries.filter((entry) => typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.date === "string")
+      .sort((first, second) => second.score - first.score).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+function renderTrialRanking(entries) {
+  trialRankingList.replaceChildren();
+  entries.forEach((entry, index) => {
+    const item = document.createElement("li");
+    item.textContent = `${index + 1}位　${entry.name}　${entry.date}　${entry.score}点`;
+    trialRankingList.append(item);
+  });
+}
+
+function showTrialRanking() {
+  resultDialog.close();
+  const entries = readTrialRanking();
+  renderTrialRanking(entries);
+  document.querySelector("#trial-ranking-category").textContent = `${labels[trialResult.difficulty]} ／ ${labels[trialResult.audioStyle]}`;
+  trialRankingForm.hidden = !trialResult.eligible || (entries.length >= 5 && trialResult.score <= entries[4].score);
+  trialRankingName.value = "";
+  trialRankingMessage.textContent = "このブラウザに保存した記録です。同点の場合は先に登録した記録を優先します。";
+  trialRankingDialog.showModal();
+  if (!trialRankingForm.hidden) trialRankingName.focus();
+}
+
+trialRankingForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = trialRankingName.value.trim().slice(0, 12);
+  if (!name) { trialRankingName.setCustomValidity("名前を入力してください。"); trialRankingName.reportValidity(); return; }
+  const entries = [...readTrialRanking(), { name, date: trialResult.date, score: trialResult.score }]
+    .sort((first, second) => second.score - first.score).slice(0, 5);
+  try {
+    localStorage.setItem(trialRankingKey(), JSON.stringify(entries));
+    trialResult.eligible = false;
+    trialRankingForm.hidden = true;
+    renderTrialRanking(entries);
+    trialRankingMessage.textContent = "ランキングに登録しました。";
+  } catch {
+    trialRankingMessage.textContent = "記録を保存できませんでした。ブラウザの保存設定を確認してください。";
+  }
+});
+trialRankingName.addEventListener("input", () => trialRankingName.setCustomValidity(""));
+document.querySelector("#trial-ranking-back").addEventListener("click", showSetup);
+trialRankingDialog.addEventListener("cancel", (event) => { event.preventDefault(); showSetup(); });
 
 function renderOnlinePlayers() {
   onlinePlayers.replaceChildren();
@@ -521,7 +583,7 @@ async function openRoomLobby(joinOnly = false) {
   roomEntry.hidden = false;
   roomWaiting.hidden = true;
   createRoomButton.hidden = joinOnly;
-  document.querySelector("#player-name-label").hidden = joinOnly;
+  document.querySelector("#player-name-label").hidden = false;
   document.querySelector("#room-code-label").hidden = !joinOnly;
   joinRoomButton.hidden = !joinOnly;
   try {
@@ -676,6 +738,8 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  trialRankingDialog.close();
+  trialResult = null;
   presenceUnsubscribe?.();
   presenceUnsubscribe = null;
   gameSession += 1;
@@ -701,6 +765,12 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  trialResult = isVirtualMode() && !isOnlineMatch() ? {
+    difficulty: activeSettings.difficulty, audioStyle: activeSettings.audioStyle,
+    score, date: new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()),
+    eligible: !endedEarly,
+  } : null;
+  restartButton.textContent = trialResult ? "ランキングへ" : "設定画面へ";
   presenceUnsubscribe?.();
   presenceUnsubscribe = null;
   gameSession += 1;
@@ -842,7 +912,7 @@ endButton.addEventListener("click", async () => {
     setMessage("退出を送信できませんでした。もう一度お試しください。");
   }
 });
-restartButton.addEventListener("click", showSetup);
+restartButton.addEventListener("click", () => trialResult ? showTrialRanking() : showSetup());
 createRoomButton.addEventListener("click", () => runRoomAction(createOnlineRoom));
 joinRoomButton.addEventListener("click", () => runRoomAction(joinOnlineRoom));
 roomStartButton.addEventListener("click", () => runRoomAction(startOnlineRoom));

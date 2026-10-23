@@ -85,6 +85,8 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 .online-players p { margin: 0; padding: 10px 14px; border-radius: 10px; background: #e9f0e3; font-weight: 700; }
 #result-ranking { list-style: none; padding: 0; text-align: left; }
 #result-ranking li { padding: 12px 8px; border-bottom: 1px solid #ddd1bd; font-weight: 700; }
+#trial-ranking-list { list-style: none; padding: 0; text-align: left; }
+#trial-ranking-list li { padding: 12px 0; border-bottom: 1px solid #ddd1bd; font-weight: 700; overflow-wrap: anywhere; }
 #home-join-button { margin-top: 20px; }
 
 @keyframes shake { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }

@@ -97,7 +97,21 @@
         <button id="room-back-button" class="text-button" type="button">戻る</button>
       </div>
     </dialog>
+    <dialog id="trial-ranking-dialog" class="result-dialog">
+      <div>
+        <p class="eyebrow">Time Trial Ranking</p><h2>ランキング TOP 5</h2>
+        <p id="trial-ranking-category"></p>
+        <form id="trial-ranking-form" hidden>
+          <p>5位以内にランクイン！ 名前を登録してください。</p>
+          <label class="room-label">名前<input id="trial-ranking-name" maxlength="12" required /></label>
+          <button class="primary-button" type="submit">登録する</button>
+        </form>
+        <ol id="trial-ranking-list"></ol>
+        <p id="trial-ranking-message" role="status"></p>
+        <button id="trial-ranking-back" class="secondary-button" type="button">設定画面へ</button>
+      </div>
+    </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script type="module" src="script.js?v=20261022-lobby"></script>
+    <script type="module" src="script.js?v=20261023-ranking"></script>
   </body>
 </html>
