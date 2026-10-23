@@ -140,8 +140,9 @@ async function showTrialRanking() {
     trialRankingForm.hidden = !result.eligible || (entries.length >= 5 && result.score <= entries[4].score);
     trialRankingMessage.textContent = entries.length ? "みんなの記録です。同点は先に登録した記録を優先します。" : "まだ記録がありません。";
     if (!trialRankingForm.hidden) trialRankingName.focus();
-  } catch {
-    trialRankingMessage.textContent = "ランキングを読み込めませんでした。接続とFirebaseのランキング公開設定を確認してください。";
+  } catch (error) {
+    if (trialResult !== result || !trialRankingDialog.open) return;
+    trialRankingMessage.textContent = `ランキングを読み込めませんでした：${error.code || error.message || "通信エラー"}`;
   }
 }
 
