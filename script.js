@@ -1,6 +1,6 @@
 import {
-  answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, joinRoom, leaveRoom, readyRoom, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261021-match2";
+  answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
+} from "./firebase-client.js?v=20261023-shared-ranking";
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -23,8 +23,8 @@ let bgmEnabled = true;
 const bgmToggleButton = document.querySelector("#bgm-toggle-button");
 bgmToggleButton.addEventListener("click", () => {
   bgmEnabled = !bgmEnabled;
-  bgmToggleButton.textContent = bgmEnabled ? "BGMを停止" : "BGMを再開";
-  bgmToggleButton.setAttribute("aria-pressed", String(!bgmEnabled));
+  document.querySelector("#bgm-state").textContent = bgmEnabled ? "ON" : "OFF";
+  bgmToggleButton.setAttribute("aria-checked", String(bgmEnabled));
   if (bgmEnabled) startBackgroundMusic(); else bgm.pause();
 });
 const startButton = document.querySelector("#start-button");
@@ -111,59 +111,68 @@ const trialRankingMessage = document.querySelector("#trial-ranking-message");
 let trialResult = null;
 
 function trialRankingKey() {
-  return `sedm-ranking-v1-${trialResult.difficulty}-${trialResult.audioStyle}`;
-}
-
-function readTrialRanking() {
-  try {
-    const entries = JSON.parse(localStorage.getItem(trialRankingKey()) || "[]");
-    if (!Array.isArray(entries)) return [];
-    return entries.filter((entry) => typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.date === "string")
-      .sort((first, second) => second.score - first.score).slice(0, 5);
-  } catch {
-    return [];
-  }
+  return `${trialResult.difficulty}-${trialResult.audioStyle}`;
 }
 
 function renderTrialRanking(entries) {
   trialRankingList.replaceChildren();
   entries.forEach((entry, index) => {
     const item = document.createElement("li");
-    item.textContent = `${index + 1}位　${entry.name}　${entry.date}　${entry.score}点`;
+    const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(entry.createdAt));
+    item.textContent = `${index + 1}位　${entry.name}　${date}　${entry.score}点`;
     trialRankingList.append(item);
   });
 }
 
-function showTrialRanking() {
+async function showTrialRanking() {
   resultDialog.close();
-  const entries = readTrialRanking();
-  renderTrialRanking(entries);
+  const result = trialResult;
+  trialRankingList.replaceChildren();
+  trialRankingForm.hidden = true;
   document.querySelector("#trial-ranking-category").textContent = `${labels[trialResult.difficulty]} ／ ${labels[trialResult.audioStyle]}`;
-  trialRankingForm.hidden = !trialResult.eligible || (entries.length >= 5 && trialResult.score <= entries[4].score);
   trialRankingName.value = "";
-  trialRankingMessage.textContent = "このブラウザに保存した記録です。同点の場合は先に登録した記録を優先します。";
+  trialRankingMessage.textContent = "ランキングを読み込んでいます…";
   trialRankingDialog.showModal();
-  if (!trialRankingForm.hidden) trialRankingName.focus();
+  try {
+    const entries = await getTrialRankings(trialRankingKey());
+    if (trialResult !== result || !trialRankingDialog.open) return;
+    renderTrialRanking(entries);
+    trialRankingForm.hidden = !result.eligible || (entries.length >= 5 && result.score <= entries[4].score);
+    trialRankingMessage.textContent = entries.length ? "みんなの記録です。同点は先に登録した記録を優先します。" : "まだ記録がありません。";
+    if (!trialRankingForm.hidden) trialRankingName.focus();
+  } catch {
+    trialRankingMessage.textContent = "ランキングを読み込めませんでした。接続とFirebaseのランキング公開設定を確認してください。";
+  }
 }
 
-trialRankingForm.addEventListener("submit", (event) => {
+trialRankingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = trialRankingName.value.trim().slice(0, 12);
   if (!name) { trialRankingName.setCustomValidity("名前を入力してください。"); trialRankingName.reportValidity(); return; }
-  const entries = [...readTrialRanking(), { name, date: trialResult.date, score: trialResult.score }]
-    .sort((first, second) => second.score - first.score).slice(0, 5);
+  const result = trialResult;
+  const category = trialRankingKey();
+  const submitButton = trialRankingForm.querySelector('[type="submit"]');
+  submitButton.disabled = true;
   try {
-    localStorage.setItem(trialRankingKey(), JSON.stringify(entries));
-    trialResult.eligible = false;
+    await saveTrialRanking(category, name, result.score);
+    result.eligible = false;
+    const entries = await getTrialRankings(category);
+    if (trialResult !== result || !trialRankingDialog.open) return;
     trialRankingForm.hidden = true;
     renderTrialRanking(entries);
     trialRankingMessage.textContent = "ランキングに登録しました。";
   } catch {
-    trialRankingMessage.textContent = "記録を保存できませんでした。ブラウザの保存設定を確認してください。";
+    trialRankingMessage.textContent = "登録・読み込みに失敗しました。接続とFirebaseの設定を確認してください。";
+  } finally {
+    submitButton.disabled = false;
   }
 });
 trialRankingName.addEventListener("input", () => trialRankingName.setCustomValidity(""));
 document.querySelector("#trial-ranking-back").addEventListener("click", showSetup);
+document.querySelector("#home-ranking-button").addEventListener("click", () => {
+  trialResult = { ...selectedSettings, eligible: false };
+  showTrialRanking();
+});
 trialRankingDialog.addEventListener("cancel", (event) => { event.preventDefault(); showSetup(); });
 
 function renderOnlinePlayers() {

@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
-  get, getDatabase, onDisconnect, onValue, ref, runTransaction, serverTimestamp, set, update,
+  get, getDatabase, limitToFirst, onDisconnect, onValue, orderByChild, push, query, ref, runTransaction, serverTimestamp, set, update,
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -13,6 +13,18 @@ onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => { clockOffset = s
 
 export function serverNow() {
   return Date.now() + clockOffset;
+}
+
+export async function getTrialRankings(category) {
+  const snapshot = await get(query(ref(database, `rankings/${category}`), orderByChild("rank"), limitToFirst(5)));
+  return Object.values(snapshot.val() || {}).sort((first, second) => second.score - first.score || first.createdAt - second.createdAt);
+}
+
+export async function saveTrialRanking(category, name, score) {
+  const user = await signInForMatch();
+  await set(push(ref(database, `rankings/${category}`)), {
+    uid: user.uid, name, score, rank: -score, createdAt: serverTimestamp(),
+  });
 }
 
 export async function signInForMatch() {

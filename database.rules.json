@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "rankings": {
+      "$category": {
+        ".read": true,
+        ".indexOn": ["rank"],
+        "$entryId": {
+          ".write": "auth != null && !data.exists() && newData.exists()",
+          ".validate": "$category.matches(/^(karuta|hyakunin)-(source|recitation)$/) && newData.hasChildren(['uid', 'name', 'score', 'rank', 'createdAt'])",
+          "uid": { ".validate": "newData.val() == auth.uid" },
+          "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 12" },
+          "score": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 740 && newData.val() % 1 == 0" },
+          "rank": { ".validate": "newData.isNumber() && newData.val() == 0 - newData.parent().child('score').val()" },
+          "createdAt": { ".validate": "newData.isNumber() && newData.val() == now" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}
