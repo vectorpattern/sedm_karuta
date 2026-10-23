@@ -19,6 +19,14 @@ const wrongSound = new Audio("assets/sfx/wrong.mp3");
 const startSound = new Audio("assets/sfx/start.mp3");
 bgm.loop = true;
 bgm.preload = "auto";
+let bgmEnabled = true;
+const bgmToggleButton = document.querySelector("#bgm-toggle-button");
+bgmToggleButton.addEventListener("click", () => {
+  bgmEnabled = !bgmEnabled;
+  bgmToggleButton.textContent = bgmEnabled ? "BGMを停止" : "BGMを再開";
+  bgmToggleButton.setAttribute("aria-pressed", String(!bgmEnabled));
+  if (bgmEnabled) startBackgroundMusic(); else bgm.pause();
+});
 const startButton = document.querySelector("#start-button");
 const replayButton = document.querySelector("#replay-button");
 const nextButton = document.querySelector("#next-button");
@@ -202,7 +210,7 @@ function playSound(sound) {
 }
 
 function startBackgroundMusic() {
-  if (gameScreen.hidden && bgm.paused) bgm.play().catch(() => undefined);
+  if (bgmEnabled && gameScreen.hidden && bgm.paused) bgm.play().catch(() => undefined);
 }
 
 function stopBackgroundMusic() {
