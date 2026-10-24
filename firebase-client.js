@@ -132,7 +132,7 @@ export function readyRoom(roomCode, uid, expectedIndex) {
 
 export function answerRoom(roomCode, uid, cardKey, answerKey, points, expectedIndex) {
   return runTransaction(roomRef(roomCode), (room) => {
-    if (!room || room.status !== "playing" || room.phase !== "playing" || room.index !== expectedIndex || !room.players?.[uid] || room.mistakes?.[uid] || (room.blockedThrough?.[uid] ?? -1) >= room.index) return;
+    if (!room || room.status !== "playing" || room.phase !== "playing" || room.index !== expectedIndex || !room.players?.[uid] || room.players[uid].connected === false || room.mistakes?.[uid] || (room.blockedThrough?.[uid] ?? -1) >= room.index) return;
     const correct = cardKey === answerKey;
     if (!correct) {
       room.mistakes ||= {};
@@ -182,13 +182,30 @@ export function watchPresence(roomCode, uid, onError) {
 export function finishIfPlayerLeft(roomCode) {
   return runTransaction(roomRef(roomCode), (room) => {
     if (!room || room.status !== "playing") return;
-    const departed = Object.entries(room.players || {}).find(([, player]) => player.connected === false);
-    if (!departed) return;
-    room.status = "finished";
-    room.phase = "finished";
-    room.finishReason = "player-left";
-    room.departedName = departed[1].name;
-    return room;
+    if (room.players?.[room.hostUid]?.connected === false) {
+      room.status = "finished";
+      room.phase = "finished";
+      room.finishReason = "player-left";
+      room.departedName = room.players[room.hostUid].name;
+      return room;
+    }
+    const players = Object.entries(room.players || {}).filter(([, player]) => player.connected !== false);
+    if (!players.length) return;
+    if (room.phase === "preparing" && players.every(([uid]) => room.ready?.[uid])) {
+      room.phase = "playing";
+      room.startedAt = serverNow() + 3000;
+      return room;
+    }
+    if (room.phase === "playing" && players.every(([uid]) => room.mistakes?.[uid] || (room.blockedThrough?.[uid] ?? -1) >= room.index)) {
+      const number = room.order[room.index];
+      const answerKey = room.settings.difficulty === "karuta" ? `${number % 2 ? "上" : "下"}-${Math.ceil(number / 2)}` : `下-${number}`;
+      room.phase = "resolving";
+      room.answer = { uid: room.hostUid, answerKey, cardKey: "", correct: false, points: 0 };
+      room.usedCards ||= {};
+      room.usedCards[answerKey] = true;
+      return room;
+    }
+    return;
   }, { applyLocally: false });
 }
 

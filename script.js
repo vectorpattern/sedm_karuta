@@ -1,6 +1,6 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261024-match";
+} from "./firebase-client.js?v=20261024-disconnect";
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -205,7 +205,7 @@ function renderOnlinePlayers() {
     const item = document.createElement("p");
     const resting = (onlineRoom.blockedThrough?.[uid] ?? -1) >= onlineRoom.index;
     item.style.borderLeft = `8px solid ${player.color || "#365c48"}`;
-    item.textContent = `${player.name}${uid === onlineUser?.uid ? "（自分）" : ""}：${player.correct || 0}枚${resting ? " ／ お手つき・お休み" : ""}`;
+    item.textContent = `${player.name}${uid === onlineUser?.uid ? "（自分）" : ""}：${player.correct || 0}枚${player.connected === false ? " ／ 切断・退出" : resting ? " ／ お手つき・お休み" : ""}`;
     onlinePlayers.append(item);
   });
 }
@@ -665,11 +665,17 @@ function syncOnlineRoom(room) {
   onlineRoom = room;
   updatePenaltyDisplay();
   if (room.status === "playing" && Object.values(room.players || {}).some((player) => player.connected === false)) {
-    audio.pause();
-    canAnswer = false;
-    setCardsEnabled(false);
     finishIfPlayerLeft(onlineRoomCode).catch(() => setMessage("退出による終了処理に失敗しました。"));
-    return;
+    if (room.players?.[room.hostUid]?.connected === false) {
+      audio.pause();
+      canAnswer = false;
+      setCardsEnabled(false);
+      return;
+    }
+    if (room.players?.[onlineUser?.uid]?.connected === false) {
+      endGame(true);
+      return;
+    }
   }
   if (room.status === "waiting") {
     renderRoomWaiting(room);
@@ -963,6 +969,7 @@ endButton.addEventListener("click", async () => {
   try {
     await leaveRoom(onlineRoomCode, onlineUser.uid);
     await finishIfPlayerLeft(onlineRoomCode);
+    if (onlineUnsubscribe) endGame(true);
   } catch {
     endButton.disabled = false;
     setMessage("退出を送信できませんでした。もう一度お試しください。");
