@@ -105,6 +105,9 @@ let onlinePreparedIndex = -1;
 let onlineSetupPending = false;
 let presenceUnsubscribe = null;
 let waitingPlayerIds = null;
+let notifiedMistakes = new Set();
+let captureQueue = [];
+let captureTimer = null;
 const captureFlash = document.createElement("div");
 captureFlash.className = "capture-flash";
 captureFlash.setAttribute("role", "status");
@@ -116,13 +119,29 @@ function updatePenaltyDisplay() {
   gameScreen.classList.toggle("is-resting", resting);
 }
 
-function showCapture(uid) {
+function showCapture(uid, mistake = false) {
   const player = onlineRoom.players?.[uid];
-  captureFlash.style.setProperty("--player-color", player?.color || "#365c48");
-  captureFlash.textContent = `${player?.name || "プレイヤー"}が1枚獲得！`;
+  captureQueue.push({ color: player?.color || "#365c48", text: `${player?.name || "プレイヤー"}${mistake ? "がお手つきしました" : "が1枚獲得！"}`, sound: mistake ? mistakeSound : uid === onlineUser?.uid ? correctSound : wrongSound });
+  if (captureTimer === null) playNextCapture();
+}
+
+function playNextCapture() {
+  const notice = captureQueue.shift();
+  if (!notice) { captureTimer = null; return; }
+  playSound(notice.sound);
+  captureFlash.style.setProperty("--player-color", notice.color);
+  captureFlash.textContent = notice.text;
   captureFlash.classList.remove("is-visible");
   void captureFlash.offsetWidth;
   captureFlash.classList.add("is-visible");
+  captureTimer = window.setTimeout(playNextCapture, 1050);
+}
+
+function clearCaptureNotices() {
+  window.clearTimeout(captureTimer);
+  captureTimer = null;
+  captureQueue = [];
+  captureFlash.classList.remove("is-visible");
 }
 const onlinePlayers = document.querySelector("#online-players");
 const resultRanking = document.querySelector("#result-ranking");
@@ -512,7 +531,6 @@ function submitOnlineAnswer(cardKey) {
   canAnswer = false;
   setCardsEnabled(false);
   const answerKey = cardForQuestion(currentAnswer).key;
-  if (cardKey !== answerKey) playSound(mistakeSound);
   answerRoom(onlineRoomCode, onlineUser.uid, cardKey, answerKey, 1, questionIndex).catch(() => {
     if (onlineRoom?.phase === "playing" && !onlineRoom?.mistakes?.[onlineUser.uid] && (onlineRoom?.blockedThrough?.[onlineUser.uid] ?? -1) < questionIndex) {
       canAnswer = true;
@@ -587,6 +605,7 @@ async function setupGame(settings, order) {
   score = 0;
   correctAnswers = 0;
   onlineResolvedIndex = -1;
+  notifiedMistakes = new Set();
   onlinePreparedIndex = -1;
   onlineSetupPending = true;
   currentAnswer = null;
@@ -663,6 +682,14 @@ function syncOnlineRoom(room) {
     return;
   }
   onlineRoom = room;
+  if (room.status === "playing" && !gameScreen.hidden) {
+    Object.keys(room.mistakes || {}).forEach((uid) => {
+      const key = `${room.index}:${uid}`;
+      if (notifiedMistakes.has(key)) return;
+      notifiedMistakes.add(key);
+      showCapture(uid, true);
+    });
+  }
   updatePenaltyDisplay();
   if (room.status === "playing" && Object.values(room.players || {}).some((player) => player.connected === false)) {
     finishIfPlayerLeft(onlineRoomCode).catch(() => setMessage("退出による終了処理に失敗しました。"));
@@ -724,7 +751,6 @@ function syncOnlineRoom(room) {
       if (onlineResolvedIndex !== room.index) {
         onlineResolvedIndex = room.index;
         if (answer.correct) {
-          playSound(answer.uid === onlineUser?.uid ? correctSound : wrongSound);
           showCapture(answer.uid);
         }
         window.clearTimeout(onlineAdvanceTimer);
@@ -794,6 +820,7 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  clearCaptureNotices();
   cardBoard.classList.remove("is-resting");
   gameScreen.classList.remove("is-resting");
   captureFlash.classList.remove("is-visible");
@@ -824,6 +851,7 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  clearCaptureNotices();
   captureFlash.classList.remove("is-visible");
   trialResult = isVirtualMode() && !isOnlineMatch() ? {
     difficulty: activeSettings.difficulty, audioStyle: activeSettings.audioStyle,
