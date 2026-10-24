@@ -8,6 +8,12 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const database = getDatabase(app);
+const PLAYER_COLORS = ["#c0392b", "#2166ac", "#198754", "#8e44ad", "#b85c00", "#007f86", "#c21875", "#6654bb", "#657d16", "#80533b"];
+function availablePlayerColor(players) {
+  const used = new Set(Object.values(players || {}).map((player) => player.color));
+  const available = PLAYER_COLORS.filter((color) => !used.has(color));
+  return available[Math.floor(Math.random() * available.length)] || PLAYER_COLORS[0];
+}
 let clockOffset = 0;
 onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => { clockOffset = snapshot.val() || 0; });
 
@@ -39,7 +45,12 @@ export function roomRef(roomCode) {
 
 export async function createRoom(roomCode, room) {
   const reference = roomRef(roomCode);
-  const result = await runTransaction(reference, (current) => (current ? undefined : room));
+  const result = await runTransaction(reference, (current) => {
+    if (current && current.status !== "finished" && Object.values(current.players || {}).some((player) => player.connected !== false)) return;
+    const next = structuredClone(room);
+    next.players[next.hostUid].color = availablePlayerColor({});
+    return next;
+  }, { applyLocally: false });
   return result.committed;
 }
 
@@ -55,12 +66,12 @@ export async function joinRoom(roomCode, player) {
       failure = "このルームは開始済み、または終了しています。新しいルームを作ってください。";
       return;
     }
-    if (!room.players?.[uid] && Object.keys(room.players || {}).length >= 4) {
-      failure = "このルームは満室です（最大4人）。";
+    if (!room.players?.[uid] && Object.keys(room.players || {}).length >= 10) {
+      failure = "このルームは満室です（最大10人）。";
       return;
     }
     room.players ||= {};
-    room.players[uid] = room.players[uid] ? { ...room.players[uid], connected: true } : playerData;
+    room.players[uid] = room.players[uid] ? { ...room.players[uid], connected: true } : { ...playerData, color: availablePlayerColor(room.players) };
     return room;
   });
   if (!result.committed || !result.snapshot.val()?.players?.[uid]) throw new Error(failure);
@@ -148,16 +159,24 @@ export function leaveRoom(roomCode, uid) {
 }
 
 export function watchPresence(roomCode, uid, onError) {
-  return onValue(ref(database, ".info/connected"), async (snapshot) => {
+  let stopped = false;
+  const connectedRef = ref(database, `rooms/${roomCode}/players/${uid}/connected`);
+  const disconnect = onDisconnect(connectedRef);
+  const unsubscribe = onValue(ref(database, ".info/connected"), async (snapshot) => {
     if (snapshot.val() !== true) return;
     try {
-      const connectedRef = ref(database, `rooms/${roomCode}/players/${uid}/connected`);
-      await onDisconnect(connectedRef).set(false);
+      await disconnect.set(false);
+      if (stopped) { await disconnect.cancel(); return; }
       await set(connectedRef, true);
     } catch (error) {
       onError(error);
     }
   });
+  return () => {
+    stopped = true;
+    unsubscribe();
+    disconnect.cancel().catch(onError);
+  };
 }
 
 export function finishIfPlayerLeft(roomCode) {

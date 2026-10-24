@@ -1,6 +1,6 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261023-shared-ranking";
+} from "./firebase-client.js?v=20261024-match";
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -16,9 +16,12 @@ const audio = document.querySelector("#reader");
 const bgm = new Audio("assets/sfx/bgm.m4a");
 const correctSound = new Audio("assets/sfx/correct.mp3");
 const wrongSound = new Audio("assets/sfx/wrong.mp3");
+const mistakeSound = new Audio("assets/sfx/mistake.mp3");
+const joinSound = new Audio("assets/sfx/join.mp3");
 const startSound = new Audio("assets/sfx/start.mp3");
 bgm.loop = true;
 bgm.preload = "auto";
+bgm.volume = 0.2;
 let bgmEnabled = true;
 const bgmToggleButton = document.querySelector("#bgm-toggle-button");
 bgmToggleButton.addEventListener("click", () => {
@@ -101,6 +104,26 @@ let onlineResolvedIndex = -1;
 let onlinePreparedIndex = -1;
 let onlineSetupPending = false;
 let presenceUnsubscribe = null;
+let waitingPlayerIds = null;
+const captureFlash = document.createElement("div");
+captureFlash.className = "capture-flash";
+captureFlash.setAttribute("role", "status");
+document.body.append(captureFlash);
+
+function updatePenaltyDisplay() {
+  const resting = isOnlineMatch() && (onlineRoom?.blockedThrough?.[onlineUser?.uid] ?? -1) >= (onlineRoom?.index ?? 0);
+  cardBoard.classList.toggle("is-resting", resting);
+  gameScreen.classList.toggle("is-resting", resting);
+}
+
+function showCapture(uid) {
+  const player = onlineRoom.players?.[uid];
+  captureFlash.style.setProperty("--player-color", player?.color || "#365c48");
+  captureFlash.textContent = `${player?.name || "プレイヤー"}が1枚獲得！`;
+  captureFlash.classList.remove("is-visible");
+  void captureFlash.offsetWidth;
+  captureFlash.classList.add("is-visible");
+}
 const onlinePlayers = document.querySelector("#online-players");
 const resultRanking = document.querySelector("#result-ranking");
 const trialRankingDialog = document.querySelector("#trial-ranking-dialog");
@@ -181,6 +204,7 @@ function renderOnlinePlayers() {
   Object.entries(onlineRoom?.players || {}).sort(([firstUid], [secondUid]) => Number(secondUid === onlineUser?.uid) - Number(firstUid === onlineUser?.uid)).forEach(([uid, player]) => {
     const item = document.createElement("p");
     const resting = (onlineRoom.blockedThrough?.[uid] ?? -1) >= onlineRoom.index;
+    item.style.borderLeft = `8px solid ${player.color || "#365c48"}`;
     item.textContent = `${player.name}${uid === onlineUser?.uid ? "（自分）" : ""}：${player.correct || 0}枚${resting ? " ／ お手つき・お休み" : ""}`;
     onlinePlayers.append(item);
   });
@@ -327,10 +351,6 @@ function pointsForElapsedTime(seconds) {
   return 1;
 }
 
-function roomCode() {
-  return Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
-}
-
 function playerName() {
   return playerNameInput.value.trim().slice(0, 12) || "プレイヤー";
 }
@@ -434,7 +454,7 @@ function revealCorrectCard(message, selectedCard = null) {
   setCardsEnabled(false);
   selectedCard?.classList.add("is-wrong");
   answerCard?.classList.add("is-revealed");
-  playSound(wrongSound);
+  playSound(selectedCard ? mistakeSound : wrongSound);
   revealTimerId = window.setTimeout(() => {
     answerCard?.classList.remove("is-revealed");
     answerCard?.classList.add("is-answered");
@@ -449,6 +469,7 @@ function markUsedCards(usedCards = {}) {
 }
 
 function playOnlineQuestion() {
+  updatePenaltyDisplay();
   clearTimers();
   window.clearTimeout(onlineAudioTimer);
   currentAnswer = questionOrder[questionIndex];
@@ -491,7 +512,7 @@ function submitOnlineAnswer(cardKey) {
   canAnswer = false;
   setCardsEnabled(false);
   const answerKey = cardForQuestion(currentAnswer).key;
-  if (cardKey !== answerKey) playSound(wrongSound);
+  if (cardKey !== answerKey) playSound(mistakeSound);
   answerRoom(onlineRoomCode, onlineUser.uid, cardKey, answerKey, 1, questionIndex).catch(() => {
     if (onlineRoom?.phase === "playing" && !onlineRoom?.mistakes?.[onlineUser.uid] && (onlineRoom?.blockedThrough?.[onlineUser.uid] ?? -1) < questionIndex) {
       canAnswer = true;
@@ -613,6 +634,7 @@ async function openRoomLobby(joinOnly = false) {
 }
 
 function beginWatchingRoom(code) {
+  waitingPlayerIds = null;
   onlineUnsubscribe?.();
   presenceUnsubscribe?.();
   presenceUnsubscribe = watchPresence(code, onlineUser.uid, (error) => { roomMessage.textContent = `接続状態を登録できませんでした：${error.message}`; });
@@ -624,8 +646,12 @@ function renderRoomWaiting(room) {
   roomEntry.hidden = true;
   roomWaiting.hidden = false;
   roomCodeDisplay.textContent = onlineRoomCode;
-  const players = Object.values(room.players || {});
-  roomPlayerList.textContent = `参加者（${players.length}/4）：${players.map((player) => player.name).join("、")}`;
+  const entries = Object.entries(room.players || {}).filter(([, player]) => player.connected !== false);
+  const ids = new Set(entries.map(([uid]) => uid));
+  if (waitingPlayerIds && entries.some(([uid]) => !waitingPlayerIds.has(uid) && uid !== onlineUser?.uid)) playSound(joinSound);
+  waitingPlayerIds = ids;
+  const players = entries.map(([, player]) => player);
+  roomPlayerList.textContent = `参加者（${players.length}/10）：${players.map((player) => player.name).join("、")}`;
   roomStartButton.hidden = room.hostUid !== onlineUser?.uid;
   roomStartButton.disabled = players.length < 2;
   roomMessage.textContent = players.length < 2 ? "対戦相手の参加を待っています。" : "2人以上そろいました。ホストが開始できます。";
@@ -637,6 +663,7 @@ function syncOnlineRoom(room) {
     return;
   }
   onlineRoom = room;
+  updatePenaltyDisplay();
   if (room.status === "playing" && Object.values(room.players || {}).some((player) => player.connected === false)) {
     audio.pause();
     canAnswer = false;
@@ -672,7 +699,6 @@ function syncOnlineRoom(room) {
       onlinePreparedIndex = -1;
     }
     if (room.phase === "playing" && (room.mistakes?.[onlineUser?.uid] || (room.blockedThrough?.[onlineUser?.uid] ?? -1) >= room.index)) {
-      if (canAnswer) playSound(wrongSound);
       canAnswer = false;
       setCardsEnabled(false);
       setMessage(room.mistakes?.[onlineUser?.uid]
@@ -691,7 +717,10 @@ function syncOnlineRoom(room) {
       setMessage(result);
       if (onlineResolvedIndex !== room.index) {
         onlineResolvedIndex = room.index;
-        if (answer.correct) playSound(answer.uid === onlineUser?.uid ? correctSound : wrongSound);
+        if (answer.correct) {
+          playSound(answer.uid === onlineUser?.uid ? correctSound : wrongSound);
+          showCapture(answer.uid);
+        }
         window.clearTimeout(onlineAdvanceTimer);
         onlineAdvanceTimer = window.setTimeout(() => advanceRoom(onlineRoomCode, room.index).catch(() => setMessage("次の問題への通信に失敗しました。")), NEXT_QUESTION_DELAY);
       }
@@ -707,7 +736,7 @@ function syncOnlineRoom(room) {
 async function createOnlineRoom() {
   if (!onlineUser) onlineUser = await signInForMatch();
   createRoomButton.disabled = true;
-  const code = roomCode();
+  const code = "SEDM01";
   const settings = { ...selectedSettings, matchType: "online" };
   const room = {
     hostUid: onlineUser.uid,
@@ -718,7 +747,10 @@ async function createOnlineRoom() {
   };
   const created = await createRoom(code, room);
   createRoomButton.disabled = false;
-  if (!created) return createOnlineRoom();
+  if (!created) {
+    roomMessage.textContent = "固定ルーム SEDM01 は使用中です。スタート画面から参加するか、前の対戦が終了してから作成してください。";
+    return;
+  }
   beginWatchingRoom(code);
 }
 
@@ -756,6 +788,9 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  cardBoard.classList.remove("is-resting");
+  gameScreen.classList.remove("is-resting");
+  captureFlash.classList.remove("is-visible");
   trialRankingDialog.close();
   trialResult = null;
   presenceUnsubscribe?.();
@@ -783,6 +818,7 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  captureFlash.classList.remove("is-visible");
   trialResult = isVirtualMode() && !isOnlineMatch() ? {
     difficulty: activeSettings.difficulty, audioStyle: activeSettings.audioStyle,
     score, date: new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()),
@@ -806,11 +842,13 @@ function endGame(endedEarly = false) {
   nextButton.disabled = true;
   if (isOnlineMatch()) {
     resultTitle.textContent = endedEarly ? "対戦を退出しました" : "結果発表";
-    resultLabel.textContent = "自分の取得札";
-    finalScoreElement.textContent = `${correctAnswers} 枚`;
+    resultLabel.textContent = "あなたの順位";
+    const myCount = onlineRoom?.players?.[onlineUser?.uid]?.correct || 0;
+    const myRank = 1 + Object.values(onlineRoom?.players || {}).filter((player) => (player.correct || 0) > myCount).length;
+    finalScoreElement.textContent = `${myRank}位`;
     resultMessageElement.textContent = onlineRoom?.finishReason === "player-left"
       ? `${onlineRoom.departedName || "参加者"}が退出したため対戦を終了しました。終了時点の順位です。`
-      : endedEarly ? "退出時点の順位です。" : "取得枚数による順位です。";
+      : endedEarly ? "退出時点の取得枚数" : "取得枚数";
     resultRanking.replaceChildren();
     const players = Object.entries(onlineRoom?.players || {}).sort(([, first], [, second]) => (second.correct || 0) - (first.correct || 0));
     let rank = 0;
