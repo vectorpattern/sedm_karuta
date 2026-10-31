@@ -67,8 +67,8 @@ export async function joinRoom(roomCode, player) {
   let failure = "参加できませんでした。もう一度お試しください。";
   const result = await runTransaction(reference, (room) => {
     if (!room) return null;
-    if (room.status !== "waiting") {
-      failure = "このルームは開始済み、または終了しています。新しいルームを作ってください。";
+    if (room.status !== "waiting" && !(room.status === "playing" && room.players?.[uid])) {
+      failure = room.status === "playing" ? "対戦中は、同じブラウザの参加者だけが再入室できます。" : "この対戦は終了しています。新しいルームを作ってください。";
       return;
     }
     if (!room.players?.[uid] && Object.keys(room.players || {}).length >= 10) {
@@ -76,7 +76,7 @@ export async function joinRoom(roomCode, player) {
       return;
     }
     room.players ||= {};
-    room.players[uid] = room.players[uid] ? { ...room.players[uid], connected: true } : { ...playerData, color: availablePlayerColor(room.players) };
+    room.players[uid] = room.players[uid] ? { ...room.players[uid], name: playerData.name, connected: true } : { ...playerData, color: availablePlayerColor(room.players) };
     return room;
   });
   if (!result.committed || !result.snapshot.val()?.players?.[uid]) throw new Error(failure);

@@ -1,7 +1,7 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261031-voice";
-import { createVoiceChat } from "./voice-chat.js?v=20261031-ingame-voice";
+} from "./firebase-client.js?v=20261031-rejoin";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-rejoin";
 
 const voiceChat = createVoiceChat(getVoiceIdToken);
 
@@ -466,6 +466,11 @@ function playQuestion() {
 }
 
 function handleAudioError() {
+  if (isOnlineMatch()) {
+    replayButton.disabled = onlineRoom?.phase !== "playing";
+    setMessage("読み上げを再生できませんでした。「もう一度聞く」を押して音声を有効にしてください。札の選択はできます。");
+    return;
+  }
   if (isVirtualMode()) {
     canAnswer = false;
     setCardsEnabled(false);
@@ -636,9 +641,11 @@ async function setupGame(settings, order) {
   clearTimers();
   audio.pause();
   questionOrder = order;
-  questionIndex = 0;
-  score = 0;
-  correctAnswers = 0;
+  questionIndex = isOnlineMatch() ? onlineRoom?.index || 0 : 0;
+  score = isOnlineMatch() ? onlineRoom?.players?.[onlineUser?.uid]?.score || 0 : 0;
+  correctAnswers = isOnlineMatch() ? onlineRoom?.players?.[onlineUser?.uid]?.correct || 0 : 0;
+  canAnswer = false;
+  onlineQuestionIndex = -1;
   onlineResolvedIndex = -1;
   notifiedMistakes = new Set();
   onlinePreparedIndex = -1;
@@ -667,7 +674,7 @@ async function setupGame(settings, order) {
   await playStartSound();
   if (session !== gameSession || gameScreen.hidden) return;
   onlineSetupPending = false;
-  if (isOnlineMatch()) playOnlineQuestion(); else playQuestion();
+  if (isOnlineMatch()) syncOnlineRoom(onlineRoom); else playQuestion();
 }
 
 async function openRoomLobby(joinOnly = false) {

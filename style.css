@@ -103,6 +103,8 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 .voice-panel h3 { margin: 0 0 8px; font-size: 1rem; }
 .voice-panel p { font-size: .85rem; line-height: 1.5; }
 .voice-panel button { margin: 4px; font-size: .85rem; }
+.voice-volume { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; font-size: .85rem; }
+.voice-volume input { width: min(150px, 45%); }
 .card-board.is-resting { filter: grayscale(1); opacity: .55; }
 #game-screen.is-resting .message-panel { background: #444; color: #fff; border: 3px solid #c0392b; }
 .capture-flash { position: fixed; inset: 12px; z-index: 50; border: 10px solid var(--player-color); border-radius: 18px; pointer-events: none; opacity: 0; padding: 22px; text-align: center; color: var(--player-color); font-size: clamp(1.3rem, 4vw, 2.2rem); font-weight: 900; text-shadow: 0 0 5px #fff, 0 0 12px #fff; }

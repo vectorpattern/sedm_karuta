@@ -23,6 +23,16 @@ export function createVoiceChat(getIdToken) {
   const mute = panel.querySelector(".voice-mute");
   const play = panel.querySelector(".voice-play");
   const audioContainer = panel.querySelector(".voice-audio");
+  let receiveVolume = 0.15;
+  const volumeLabel = document.createElement("label");
+  volumeLabel.className = "voice-volume";
+  volumeLabel.innerHTML = '通話音量 <input type="range" min="0" max="100" value="15" aria-label="通話の受信音量"> <span>15%</span>';
+  panel.insertBefore(volumeLabel, audioContainer);
+  volumeLabel.querySelector("input").addEventListener("input", (event) => {
+    receiveVolume = Number(event.target.value) / 100;
+    volumeLabel.querySelector("span").textContent = `${event.target.value}%`;
+    audioContainer.querySelectorAll("audio").forEach((element) => { element.volume = receiveVolume; });
+  });
   let context = null;
   let wanted = false;
   let muted = false;
@@ -89,7 +99,7 @@ export function createVoiceChat(getIdToken) {
         const element = track.attach();
         element.autoplay = true;
         element.muted = false;
-        element.volume = 1;
+        element.volume = receiveVolume;
         audioContainer.append(element);
         element.play().catch(() => render("音声の再生が止められています。「相手の音声を再生」を押してください。"));
       });
