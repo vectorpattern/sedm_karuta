@@ -1,6 +1,14 @@
 import {
-  answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261024-disconnect";
+  answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
+} from "./firebase-client.js?v=20261031-voice";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-voice";
+
+const voiceChat = createVoiceChat(getVoiceIdToken);
+
+function updateVoiceChat(room) {
+  const target = room.status === "waiting" ? "#waiting-voice" : room.status === "finished" ? "#result-voice" : "#game-voice";
+  voiceChat.update({ code: onlineRoomCode, session: room.createdAt, status: room.status, connected: room.players?.[onlineUser?.uid]?.connected }, document.querySelector(target));
+}
 
 const HYAKUNIN_QUESTIONS = 37;
 const KARUTA_QUESTIONS = 74;
@@ -682,6 +690,7 @@ function syncOnlineRoom(room) {
     return;
   }
   onlineRoom = room;
+  updateVoiceChat(room);
   if (room.status === "playing" && !gameScreen.hidden) {
     Object.keys(room.mistakes || {}).forEach((uid) => {
       const key = `${room.index}:${uid}`;
@@ -820,6 +829,7 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  voiceChat.reset();
   clearCaptureNotices();
   cardBoard.classList.remove("is-resting");
   gameScreen.classList.remove("is-resting");
@@ -851,6 +861,8 @@ function showSetup() {
 }
 
 function endGame(endedEarly = false) {
+  if (isOnlineMatch() && !endedEarly && onlineRoom?.status === "finished") updateVoiceChat(onlineRoom);
+  else voiceChat.reset();
   clearCaptureNotices();
   captureFlash.classList.remove("is-visible");
   trialResult = isVirtualMode() && !isOnlineMatch() ? {
@@ -1008,6 +1020,7 @@ createRoomButton.addEventListener("click", () => runRoomAction(createOnlineRoom)
 joinRoomButton.addEventListener("click", () => runRoomAction(joinOnlineRoom));
 roomStartButton.addEventListener("click", () => runRoomAction(startOnlineRoom));
 roomBackButton.addEventListener("click", async () => {
+  voiceChat.reset();
   if (onlineRoomCode && onlineUser) {
     presenceUnsubscribe?.();
     presenceUnsubscribe = null;

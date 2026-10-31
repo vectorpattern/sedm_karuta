@@ -2,3 +2,9 @@
 *.key
 *.pdf
 m4a/
+.dev.vars
+.env
+.env.*
+!.env.example
+.wrangler/
+node_modules/

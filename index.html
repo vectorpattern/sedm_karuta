@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SEDM カルタ</title>
-    <link rel="stylesheet" href="style.css?v=20261024-match" />
+    <link rel="stylesheet" href="style.css?v=20261031-voice" />
   </head>
   <body>
     <main class="game-shell">
@@ -74,11 +74,12 @@
         </section>
         <section class="message-panel" aria-live="polite"><p id="message"></p></section>
         <section id="online-players" class="online-players" aria-label="参加者の取得枚数" hidden></section>
+        <div id="game-voice"></div>
         <section id="card-board" class="card-board" aria-label="カルタ札"></section>
       </section>
     </main>
     <dialog id="result-dialog" class="result-dialog">
-      <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><ol id="result-ranking" hidden></ol><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
+      <div><p class="eyebrow">Game Complete</p><h2 id="result-title">ゲーム終了！</h2><p id="result-label">合計ポイント</p><strong id="final-score">0</strong><p id="result-message"></p><ol id="result-ranking" hidden></ol><div id="result-voice"></div><button id="restart-button" class="primary-button" type="button">設定画面へ</button></div>
     </dialog>
     <dialog id="room-dialog" class="result-dialog room-dialog">
       <div>
@@ -93,6 +94,7 @@
         <div id="room-waiting" hidden>
           <p>ルームコード</p><strong id="room-code-display">------</strong>
           <p id="room-player-list"></p>
+          <div id="waiting-voice"></div>
           <button id="room-start-button" class="primary-button" type="button" disabled>対戦を始める</button>
         </div>
         <p id="room-message"></p>
@@ -114,6 +116,6 @@
       </div>
     </dialog>
     <audio id="reader" preload="auto"></audio>
-    <script type="module" src="script.js?v=20261025-mistake-notice"></script>
+    <script type="module" src="script.js?v=20261031-voice"></script>
   </body>
 </html>

@@ -39,6 +39,11 @@ export async function signInForMatch() {
   return credential.user;
 }
 
+export async function getVoiceIdToken() {
+  const user = await signInForMatch();
+  return user.getIdToken();
+}
+
 export function roomRef(roomCode) {
   return ref(database, `rooms/${roomCode}`);
 }
