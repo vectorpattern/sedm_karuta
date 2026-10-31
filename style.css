@@ -61,6 +61,7 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 .board-size-control button.is-selected { background: #527260; color: #fff; }
 .card-board { --card-min: 88px; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--card-min), 1fr)); gap: clamp(7px, 1.2vw, 15px); padding: clamp(12px, 2vw, 26px); border: 7px solid #765c2b; border-radius: 10px; background-color: #a6a66d; background-image: repeating-linear-gradient(0deg, #ffffff18 0 1px, transparent 1px 42px), repeating-linear-gradient(90deg, #5a653033 0 1px, transparent 1px 42px), linear-gradient(135deg, #b7b679, #989861); box-shadow: inset 0 0 0 2px #d6cd8a, 0 5px 12px #3b2a1726; }
 .card-board[data-size="small"] { --card-min: 96px; gap: 6px; padding: 12px; }
+.card-board { border-color: var(--board-frame-color, #765c2b); }
 .card-board[data-size="medium"] { --card-min: 132px; }
 .card-board[data-size="large"] { --card-min: 180px; }
 .card { position: relative; display: block; padding: 5px; overflow: hidden; border: 5px solid #365c48; border-radius: 7px; background: repeating-linear-gradient(135deg, #7e9e7d 0 3px, #426b52 3px 6px); box-shadow: 0 3px 0 #263f32, 0 7px 12px #24332835; cursor: pointer; transition: transform .15s, opacity .15s, filter .15s; aspect-ratio: 2 / 3; }

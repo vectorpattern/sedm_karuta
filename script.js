@@ -252,6 +252,7 @@ document.querySelector("#home-ranking-button").addEventListener("click", () => {
 trialRankingDialog.addEventListener("cancel", (event) => { event.preventDefault(); showSetup(); });
 
 function renderOnlinePlayers() {
+  cardBoard.style.setProperty("--board-frame-color", onlineRoom?.players?.[onlineUser?.uid]?.color || "#765c2b");
   onlinePlayers.replaceChildren();
   Object.entries(onlineRoom?.players || {}).sort(([firstUid], [secondUid]) => Number(secondUid === onlineUser?.uid) - Number(firstUid === onlineUser?.uid)).forEach(([uid, player]) => {
     const item = document.createElement("p");
@@ -629,6 +630,7 @@ function startGame() {
 }
 
 async function setupGame(settings, order) {
+  cardBoard.style.removeProperty("--board-frame-color");
   const session = ++gameSession;
   activeSettings = settings;
   clearTimers();
@@ -854,6 +856,7 @@ async function runRoomAction(action) {
 }
 
 function showSetup() {
+  cardBoard.style.removeProperty("--board-frame-color");
   voiceChat.reset();
   clearCaptureNotices();
   cardBoard.classList.remove("is-resting");
