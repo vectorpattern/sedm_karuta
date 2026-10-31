@@ -1,7 +1,7 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
 } from "./firebase-client.js?v=20261031-voice";
-import { createVoiceChat } from "./voice-chat.js?v=20261031-audio-fix";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-connect-error";
 
 const voiceChat = createVoiceChat(getVoiceIdToken);
 

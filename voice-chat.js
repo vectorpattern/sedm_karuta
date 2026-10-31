@@ -65,6 +65,7 @@ export function createVoiceChat(getIdToken) {
     if (!wanted || !allowed() || room || connecting || !voiceConfig.tokenEndpoint) return;
     const currentGeneration = ++generation;
     const currentContext = { ...context };
+    let disconnectDetail = "";
     connecting = true;
     render();
     try {
@@ -78,6 +79,9 @@ export function createVoiceChat(getIdToken) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "通話への参加を許可できませんでした。");
       if (generation !== currentGeneration) return;
+      if (typeof data.serverUrl !== "string" || !/^wss:\/\/[^\s/]+\/?$/.test(data.serverUrl)) {
+        throw new Error("CloudflareのLIVEKIT_URLを確認してください。wss://で始まるLiveKitのProject URLが必要です。");
+      }
       const nextRoom = new sdk.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       room = nextRoom;
       nextRoom.on(sdk.RoomEvent.TrackSubscribed, (track) => {
@@ -95,17 +99,24 @@ export function createVoiceChat(getIdToken) {
       nextRoom.on(sdk.RoomEvent.ParticipantConnected, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
       nextRoom.on(sdk.RoomEvent.ParticipantDisconnected, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
       nextRoom.on(sdk.RoomEvent.AudioPlaybackStatusChanged, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
-      nextRoom.on(sdk.RoomEvent.Disconnected, () => {
+      nextRoom.on(sdk.RoomEvent.Disconnected, (reason) => {
         if (room !== nextRoom) return;
+        const reasonName = Object.entries(sdk.DisconnectReason || {}).find(([key, value]) => value === reason && !/^\d+$/.test(key))?.[0] || String(reason ?? "不明");
+        disconnectDetail = reasonName === "DUPLICATE_IDENTITY"
+          ? "同じ参加者が別のタブで通話に接続しました。別端末かシークレットウィンドウで試してください。"
+          : `切断理由：${reasonName}`;
+        if (connecting) return;
         disconnect();
         wanted = false;
-        render("通話が切断されました。再度参加してください。");
+        render(`通話が切断されました。${disconnectDetail}`);
       });
       await nextRoom.connect(data.serverUrl, data.token);
       if (generation !== currentGeneration) { await nextRoom.disconnect(); return; }
       await nextRoom.localParticipant.setMicrophoneEnabled(!muted);
       if (generation !== currentGeneration) { await nextRoom.disconnect(); return; }
       await nextRoom.startAudio().catch(() => undefined);
+      if (generation !== currentGeneration) return;
+      if (disconnectDetail) throw new Error(disconnectDetail);
       connecting = false;
       connected = true;
       render("通話に参加中です。");
@@ -113,7 +124,7 @@ export function createVoiceChat(getIdToken) {
       if (generation !== currentGeneration) return;
       disconnect();
       wanted = false;
-      render(error.name === "NotAllowedError" ? "マイクの使用を許可して、もう一度参加してください。" : `通話に接続できませんでした：${error.message}`);
+      render(error.name === "NotAllowedError" ? "マイクの使用を許可して、もう一度参加してください。" : `通話に接続できませんでした：${error.message}${disconnectDetail && error.message !== disconnectDetail ? `（${disconnectDetail}）` : ""}`);
     }
   }
 
