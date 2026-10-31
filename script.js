@@ -1,10 +1,10 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
 } from "./firebase-client.js?v=20261031-rejoin";
-import { createVoiceChat } from "./voice-chat.js?v=20261031-bgm-duck";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-fixed-gain";
 
 const voiceChat = createVoiceChat(getVoiceIdToken, (active) => {
-  bgm.volume = active ? 0.01 : 0.05;
+  setBgmVolume(active ? 0.01 : 0.05);
 });
 
 function updateVoiceChat(room) {
@@ -32,6 +32,33 @@ const startSound = new Audio("assets/sfx/start.mp3");
 bgm.loop = true;
 bgm.preload = "auto";
 bgm.volume = 0.05;
+let bgmAudioContext = null;
+let bgmGain = null;
+let bgmTargetVolume = 0.05;
+
+function setBgmVolume(volume) {
+  bgmTargetVolume = volume;
+  if (bgmGain) bgmGain.gain.setValueAtTime(volume, bgmAudioContext.currentTime);
+  else bgm.volume = volume;
+}
+
+function prepareBgmAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!bgmAudioContext && AudioContextClass) {
+    try {
+      bgmAudioContext = new AudioContextClass();
+      const source = bgmAudioContext.createMediaElementSource(bgm);
+      bgmGain = bgmAudioContext.createGain();
+      source.connect(bgmGain);
+      bgmGain.connect(bgmAudioContext.destination);
+      bgmGain.gain.value = bgmTargetVolume;
+      bgm.volume = 1;
+    } catch {
+      bgm.volume = bgmTargetVolume;
+    }
+  }
+  if (bgmAudioContext?.state === "suspended") bgmAudioContext.resume().catch(() => undefined);
+}
 let bgmEnabled = true;
 const bgmToggleButton = document.querySelector("#bgm-toggle-button");
 bgmToggleButton.addEventListener("click", () => {
@@ -299,6 +326,7 @@ function playSound(sound) {
 }
 
 function startBackgroundMusic() {
+  prepareBgmAudio();
   if (bgmEnabled && gameScreen.hidden && bgm.paused) bgm.play().catch(() => undefined);
 }
 

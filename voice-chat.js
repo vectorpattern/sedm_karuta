@@ -93,7 +93,7 @@ export function createVoiceChat(getIdToken, onVoiceActive = () => {}) {
       if (typeof data.serverUrl !== "string" || !/^wss:\/\/[^\s/]+\/?$/.test(data.serverUrl)) {
         throw new Error("CloudflareのLIVEKIT_URLを確認してください。wss://で始まるLiveKitのProject URLが必要です。");
       }
-      const nextRoom = new sdk.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const nextRoom = new sdk.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
       room = nextRoom;
       nextRoom.on(sdk.RoomEvent.TrackSubscribed, (track) => {
         if (room !== nextRoom || track.kind !== sdk.Track.Kind.Audio) return;
