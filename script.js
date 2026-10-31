@@ -1,6 +1,6 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
-} from "./firebase-client.js?v=20261031-rejoin";
+} from "./firebase-client.js?v=20261031-distinct-colors";
 import { createVoiceChat } from "./voice-chat.js?v=20261031-fixed-gain";
 
 const voiceChat = createVoiceChat(getVoiceIdToken, (active) => {

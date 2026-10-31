@@ -8,11 +8,33 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const database = getDatabase(app);
-const PLAYER_COLORS = ["#c0392b", "#2166ac", "#198754", "#8e44ad", "#b85c00", "#007f86", "#c21875", "#6654bb", "#657d16", "#80533b"];
+const PLAYER_COLORS = ["#d7191c", "#2166ac", "#16843c", "#e6b800", "#8e32ad", "#00a8b5", "#e754a4", "#e87500", "#69402b", "#252525", "#728900", "#677adc", "#008578", "#b04d64", "#767676", "#a37200"];
+
+function perceptualColor(color) {
+  const channels = color.slice(1).match(/../g).map((channel) => {
+    const value = parseInt(channel, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const [red, green, blue] = channels;
+  const light = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+  const middle = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+  const short = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+  return [0.2104542553 * light + 0.793617785 * middle - 0.0040720468 * short,
+    1.9779984951 * light - 2.428592205 * middle + 0.4505937099 * short,
+    0.0259040371 * light + 0.7827717662 * middle - 0.808675766 * short];
+}
+
 function availablePlayerColor(players) {
-  const used = new Set(Object.values(players || {}).map((player) => player.color));
+  const used = new Set(Object.values(players || {}).map((player) => player.color).filter((color) => /^#[0-9a-f]{6}$/i.test(color)));
   const available = PLAYER_COLORS.filter((color) => !used.has(color));
-  return available[Math.floor(Math.random() * available.length)] || PLAYER_COLORS[0];
+  if (!used.size) return available[Math.floor(Math.random() * available.length)];
+  const usedColors = [...used].map(perceptualColor);
+  const ranked = available.map((color) => {
+    const candidate = perceptualColor(color);
+    const distance = Math.min(...usedColors.map((existing) => Math.hypot(...candidate.map((value, index) => value - existing[index]))));
+    return { color, distance };
+  }).sort((first, second) => second.distance - first.distance);
+  return ranked[0]?.color || PLAYER_COLORS[0];
 }
 let clockOffset = 0;
 onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => { clockOffset = snapshot.val() || 0; });
