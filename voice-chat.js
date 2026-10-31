@@ -17,10 +17,11 @@ function loadSdk() {
 export function createVoiceChat(getIdToken) {
   const panel = document.createElement("section");
   panel.className = "voice-panel";
-  panel.innerHTML = '<h3>ボイスチャット</h3><p class="voice-status" role="status"></p><button class="secondary-button voice-join" type="button">通話に参加</button> <button class="secondary-button voice-mute" type="button" hidden>マイクをミュート</button><div class="voice-audio"></div>';
+  panel.innerHTML = '<h3>ボイスチャット</h3><p class="voice-status" role="status"></p><button class="secondary-button voice-join" type="button">通話に参加</button> <button class="secondary-button voice-mute" type="button" hidden>マイクをミュート</button> <button class="secondary-button voice-play" type="button" hidden>相手の音声を再生</button><div class="voice-audio"></div>';
   const status = panel.querySelector(".voice-status");
   const join = panel.querySelector(".voice-join");
   const mute = panel.querySelector(".voice-mute");
+  const play = panel.querySelector(".voice-play");
   const audioContainer = panel.querySelector(".voice-audio");
   let context = null;
   let wanted = false;
@@ -42,7 +43,12 @@ export function createVoiceChat(getIdToken) {
     mute.disabled = connecting;
     mute.textContent = muted ? "マイクをオン" : "マイクをミュート";
     mute.setAttribute("aria-pressed", String(muted));
+    play.hidden = !connected;
     status.textContent = message || (!voiceConfig.tokenEndpoint ? "通話は設定準備中です。" : !allowed() ? "ゲーム中は通話を切断します。結果画面で再接続します。" : wanted ? "通話に接続しています…" : "参加するとマイクを使用します。イヤホンの利用をおすすめします。");
+    if (connected && room) {
+      status.textContent += ` 通話${room.remoteParticipants.size + 1}人 ／ 自分のマイク${muted ? "OFF" : "ON"}`;
+      if (!room.canPlaybackAudio) status.textContent += " 「相手の音声を再生」を押してください。";
+    }
   }
 
   function disconnect() {
@@ -77,11 +83,18 @@ export function createVoiceChat(getIdToken) {
       nextRoom.on(sdk.RoomEvent.TrackSubscribed, (track) => {
         if (room !== nextRoom || track.kind !== sdk.Track.Kind.Audio) return;
         const element = track.attach();
+        element.autoplay = true;
+        element.muted = false;
+        element.volume = 1;
         audioContainer.append(element);
+        element.play().catch(() => render("音声の再生が止められています。「相手の音声を再生」を押してください。"));
       });
       nextRoom.on(sdk.RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((element) => element.remove()); });
       nextRoom.on(sdk.RoomEvent.Reconnecting, () => { if (room === nextRoom) render("再接続しています…"); });
       nextRoom.on(sdk.RoomEvent.Reconnected, () => { if (room === nextRoom) render("通話に参加中です。"); });
+      nextRoom.on(sdk.RoomEvent.ParticipantConnected, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
+      nextRoom.on(sdk.RoomEvent.ParticipantDisconnected, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
+      nextRoom.on(sdk.RoomEvent.AudioPlaybackStatusChanged, () => { if (room === nextRoom && connected) render("通話に参加中です。"); });
       nextRoom.on(sdk.RoomEvent.Disconnected, () => {
         if (room !== nextRoom) return;
         disconnect();
@@ -92,7 +105,7 @@ export function createVoiceChat(getIdToken) {
       if (generation !== currentGeneration) { await nextRoom.disconnect(); return; }
       await nextRoom.localParticipant.setMicrophoneEnabled(!muted);
       if (generation !== currentGeneration) { await nextRoom.disconnect(); return; }
-      await nextRoom.startAudio();
+      await nextRoom.startAudio().catch(() => undefined);
       connecting = false;
       connected = true;
       render("通話に参加中です。");
@@ -120,15 +133,23 @@ export function createVoiceChat(getIdToken) {
       render("通話に参加中です。");
     } catch { render("マイクを切り替えられませんでした。マイクの許可を確認してください。"); }
   });
+  play.addEventListener("click", async () => {
+    if (!room || !connected) return;
+    try {
+      await Promise.all([room.startAudio(), ...[...audioContainer.querySelectorAll("audio")].map((element) => element.play())]);
+      render("相手の音声を再生しています。");
+    } catch { render("音声を再生できません。ブラウザの音声許可と出力先を確認してください。"); }
+  });
 
   return {
     update(nextContext, container) {
+      const statusChanged = context?.status !== nextContext?.status;
       const changed = context && nextContext && (context.code !== nextContext.code || context.session !== nextContext.session);
       context = nextContext;
       if (!context || changed) { wanted = false; disconnect(); }
-      if (container) container.append(panel);
+      if (container && panel.parentElement !== container) container.append(panel);
       if (!allowed()) { if (room || connecting) disconnect(); }
-      render(connected ? "通話に参加中です。" : undefined);
+      if (statusChanged || changed || !context) render(connected ? "通話に参加中です。" : undefined);
       connect();
     },
     reset() { context = null; wanted = false; disconnect(); panel.hidden = true; },
