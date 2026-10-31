@@ -12,7 +12,7 @@ function encode(value) {
 
 async function createToken(env, uid, roomName, name) {
   const now = Math.floor(Date.now() / 1000);
-  const payload = { iss: env.LIVEKIT_API_KEY, sub: uid, name, nbf: now - 5, exp: now + 120,
+  const payload = { iss: env.LIVEKIT_API_KEY, sub: uid, name, iat: now, nbf: now - 5, exp: now + 120,
     video: { roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, canPublishData: false, canPublishSources: ["microphone"] },
   };
   const content = `${encode(JSON.stringify({ alg: "HS256", typ: "JWT" }))}.${encode(JSON.stringify(payload))}`;
@@ -23,6 +23,7 @@ async function createToken(env, uid, roomName, name) {
 
 export default {
   async fetch(request, env) {
+    env = Object.fromEntries(Object.entries(env).map(([name, value]) => [name, typeof value === "string" ? value.trim() : value]));
     const origin = request.headers.get("Origin");
     const allowedOrigin = env.ALLOWED_ORIGIN || "https://vectorpattern.github.io";
     if (origin !== allowedOrigin) return new Response("Forbidden", { status: 403 });
@@ -48,8 +49,23 @@ export default {
       const room = await roomResponse.json();
       const player = room?.players?.[user.localId];
       if (!player || player.connected === false || room.createdAt !== body.session) return json({ error: "この対戦の参加者だけが通話できます。" }, 403, origin);
-      if (!["waiting", "finished"].includes(room.status)) return json({ error: "ゲーム中は通話を休止しています。" }, 409, origin);
+      if (!["waiting", "playing", "finished"].includes(room.status)) return json({ error: "この対戦では通話に参加できません。" }, 409, origin);
       const token = await createToken(env, user.localId, `${body.roomCode}-${room.createdAt}`, String(player.name || "プレイヤー").slice(0, 12));
+      const validationUrl = new URL(env.LIVEKIT_URL);
+      if (validationUrl.protocol !== "wss:" || validationUrl.username || validationUrl.password) {
+        return json({ error: "CloudflareのLIVEKIT_URLには、wss://で始まるLiveKitのProject URLを入力してください。" }, 503, origin);
+      }
+      validationUrl.protocol = "https:";
+      validationUrl.pathname = "/rtc/validate";
+      validationUrl.search = "";
+      validationUrl.hash = "";
+      const validation = await fetch(validationUrl, {
+        headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(10000),
+      });
+      if (validation.status === 401 || validation.status === 403) {
+        return json({ error: "LiveKitが発行トークンを拒否しました。CloudflareのLIVEKIT_URL・LIVEKIT_API_KEY・LIVEKIT_API_SECRETが同じプロジェクトの組であるか確認してください。API KeyとSecretを新しい組に入れ替え、Deployしてください。" }, 502, origin);
+      }
+      if (!validation.ok) return json({ error: `LiveKitの接続先を確認できませんでした（HTTP ${validation.status}）。LIVEKIT_URLを確認してください。` }, 502, origin);
       return json({ token, serverUrl: env.LIVEKIT_URL }, 200, origin);
     } catch {
       return json({ error: "通話の接続準備に失敗しました。もう一度お試しください。" }, 502, origin);

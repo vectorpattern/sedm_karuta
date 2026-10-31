@@ -1,7 +1,7 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
 } from "./firebase-client.js?v=20261031-voice";
-import { createVoiceChat } from "./voice-chat.js?v=20261031-connect-error";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-ingame-voice";
 
 const voiceChat = createVoiceChat(getVoiceIdToken);
 
@@ -29,7 +29,7 @@ const joinSound = new Audio("assets/sfx/join.mp3");
 const startSound = new Audio("assets/sfx/start.mp3");
 bgm.loop = true;
 bgm.preload = "auto";
-bgm.volume = 0.2;
+bgm.volume = 0.05;
 let bgmEnabled = true;
 const bgmToggleButton = document.querySelector("#bgm-toggle-button");
 bgmToggleButton.addEventListener("click", () => {

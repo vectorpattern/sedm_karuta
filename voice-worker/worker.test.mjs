@@ -5,7 +5,7 @@ import { test } from "node:test";
 const source = await readFile(new URL("worker.js", import.meta.url), "utf8");
 const { default: worker } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 
-test("通話トークンは認証済み参加者に限定し、ゲーム中と別対戦へのアクセスを拒否する", async () => {
+test("通話は待機・ゲーム・結果画面で許可し、未認証者と別対戦へのアクセスを拒否する", async () => {
   const origin = "https://vectorpattern.github.io";
   const env = {
     ALLOWED_ORIGIN: origin, LIVEKIT_URL: "wss://test.livekit.cloud", LIVEKIT_API_KEY: "test-key",
@@ -14,14 +14,18 @@ test("通話トークンは認証済み参加者に限定し、ゲーム中と�
   };
   let room = { createdAt: 123, status: "waiting", players: { user1: { name: "Player", connected: true } } };
   let validUser = true;
+  let validationStatus = 200;
   const request = (body = { roomCode: "SEDM01", session: 123 }, authenticated = true) => new Request("https://test.workers.dev", {
     method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...(authenticated ? { Authorization: "Bearer fake-id-token" } : {}) },
     body: JSON.stringify(body),
   });
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => String(url).includes("accounts:lookup")
-    ? Response.json(validUser ? { users: [{ localId: "user1" }] } : {}, { status: validUser ? 200 : 400 })
-    : Response.json(room);
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("/rtc/validate")) return new Response("validation", { status: validationStatus });
+    return String(url).includes("accounts:lookup")
+      ? Response.json(validUser ? { users: [{ localId: "user1" }] } : {}, { status: validUser ? 200 : 400 })
+      : Response.json(room);
+  };
   try {
     assert.equal((await worker.fetch(new Request("https://test.workers.dev", { method: "OPTIONS", headers: { Origin: origin } }), env)).status, 204);
     assert.equal((await worker.fetch(new Request("https://test.workers.dev", { headers: { Origin: "https://other.example" } }), env)).status, 403);
@@ -42,9 +46,14 @@ test("通話トークンは認証済み参加者に限定し、ゲーム中と�
     const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.LIVEKIT_API_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
     assert(await crypto.subtle.verify("HMAC", key, Buffer.from(signature, "base64url"), new TextEncoder().encode(`${header}.${payload}`)));
     room.status = "playing";
-    assert.equal((await worker.fetch(request(), env)).status, 409);
+    assert.equal((await worker.fetch(request(), env)).status, 200);
     room.status = "finished";
     assert.equal((await worker.fetch(request(), env)).status, 200);
+    validationStatus = 401;
+    const rejected = await worker.fetch(request(), env);
+    assert.equal(rejected.status, 502);
+    assert.match((await rejected.json()).error, /同じプロジェクト/);
+    validationStatus = 200;
     assert.equal((await worker.fetch(request({ roomCode: "SEDM01", session: 456 }), env)).status, 403);
     room.players.user1.connected = false;
     assert.equal((await worker.fetch(request(), env)).status, 403);

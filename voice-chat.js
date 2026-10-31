@@ -32,7 +32,7 @@ export function createVoiceChat(getIdToken) {
   let connected = false;
 
   function allowed() {
-    return context && context.connected !== false && ["waiting", "finished"].includes(context.status);
+    return context && context.connected !== false && ["waiting", "playing", "finished"].includes(context.status);
   }
 
   function render(message) {
@@ -44,7 +44,7 @@ export function createVoiceChat(getIdToken) {
     mute.textContent = muted ? "マイクをオン" : "マイクをミュート";
     mute.setAttribute("aria-pressed", String(muted));
     play.hidden = !connected;
-    status.textContent = message || (!voiceConfig.tokenEndpoint ? "通話は設定準備中です。" : !allowed() ? "ゲーム中は通話を切断します。結果画面で再接続します。" : wanted ? "通話に接続しています…" : "参加するとマイクを使用します。イヤホンの利用をおすすめします。");
+    status.textContent = message || (!voiceConfig.tokenEndpoint ? "通話は設定準備中です。" : !allowed() ? "対戦に参加すると通話できます。" : wanted ? "通話に接続しています…" : "ゲーム中も通話できます。読み上げの回り込みを防ぐため、イヤホンの利用をおすすめします。");
     if (connected && room) {
       status.textContent += ` 通話${room.remoteParticipants.size + 1}人 ／ 自分のマイク${muted ? "OFF" : "ON"}`;
       if (!room.canPlaybackAudio) status.textContent += " 「相手の音声を再生」を押してください。";
