@@ -94,6 +94,9 @@ h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: .08em; }
 #result-ranking li { padding: 12px 8px; border-bottom: 1px solid #ddd1bd; font-weight: 700; }
 #trial-ranking-list { list-style: none; padding: 0; text-align: left; }
 #trial-ranking-list li { padding: 12px 0; border-bottom: 1px solid #ddd1bd; font-weight: 700; overflow-wrap: anywhere; }
+#trial-ranking-list h3 { margin: 8px 0; font-size: 1rem; color: #365c48; }
+#trial-ranking-list ol { list-style: none; padding: 0; }
+#trial-ranking-dialog { max-height: 90vh; overflow-y: auto; }
 #home-join-button { margin-top: 20px; }
 .voice-panel { margin: 16px 0; padding: 14px; border: 1px solid #c4d2bd; border-radius: 12px; background: #edf2e8; }
 .voice-panel h3 { margin: 0 0 8px; font-size: 1rem; }

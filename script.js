@@ -164,13 +164,35 @@ function trialRankingKey() {
   return `${trialResult.difficulty}-${trialResult.audioStyle}`;
 }
 
-function renderTrialRanking(entries) {
+const rankingCategories = ["karuta-source", "karuta-recitation", "hyakunin-source", "hyakunin-recitation"];
+
+async function readAllTrialRankings() {
+  const results = await Promise.allSettled(rankingCategories.map((category) => getTrialRankings(category)));
+  return results.map((result, index) => ({ category: rankingCategories[index], entries: result.status === "fulfilled" ? result.value : [], error: result.status === "rejected" ? result.reason : null }));
+}
+
+function renderTrialRanking(groups) {
   trialRankingList.replaceChildren();
-  entries.forEach((entry, index) => {
-    const item = document.createElement("li");
-    const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(entry.createdAt));
-    item.textContent = `${index + 1}位　${entry.name}　${date}　${entry.score}点`;
-    trialRankingList.append(item);
+  groups.forEach(({ category, entries, error }) => {
+    const section = document.createElement("li");
+    const heading = document.createElement("h3");
+    const [difficulty, audioStyle] = category.split("-");
+    heading.textContent = `${labels[difficulty]} ／ ${labels[audioStyle]}`;
+    section.append(heading);
+    const list = document.createElement("ol");
+    entries.forEach((entry, index) => {
+      const item = document.createElement("li");
+      const date = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(entry.createdAt));
+      item.textContent = `${index + 1}位　${entry.name}　${date}　${entry.score}点`;
+      list.append(item);
+    });
+    if (!entries.length) {
+      const message = document.createElement("p");
+      message.textContent = error ? `読み込めませんでした：${error.code || error.message}` : "まだ記録がありません。";
+      section.append(message);
+    }
+    section.append(list);
+    trialRankingList.append(section);
   });
 }
 
@@ -179,16 +201,19 @@ async function showTrialRanking() {
   const result = trialResult;
   trialRankingList.replaceChildren();
   trialRankingForm.hidden = true;
-  document.querySelector("#trial-ranking-category").textContent = `${labels[trialResult.difficulty]} ／ ${labels[trialResult.audioStyle]}`;
+  document.querySelector("#trial-ranking-category").textContent = result.eligible
+    ? `登録対象：${labels[result.difficulty]} ／ ${labels[result.audioStyle]}` : "全4部門のランキング";
   trialRankingName.value = "";
   trialRankingMessage.textContent = "ランキングを読み込んでいます…";
   trialRankingDialog.showModal();
   try {
-    const entries = await getTrialRankings(trialRankingKey());
+    const groups = await readAllTrialRankings();
     if (trialResult !== result || !trialRankingDialog.open) return;
-    renderTrialRanking(entries);
-    trialRankingForm.hidden = !result.eligible || (entries.length >= 5 && result.score <= entries[4].score);
-    trialRankingMessage.textContent = entries.length ? "みんなの記録です。同点は先に登録した記録を優先します。" : "まだ記録がありません。";
+    renderTrialRanking(groups);
+    const selected = groups.find((group) => group.category === trialRankingKey());
+    const entries = selected.entries;
+    trialRankingForm.hidden = !result.eligible || Boolean(selected.error) || (entries.length >= 5 && result.score <= entries[4].score);
+    trialRankingMessage.textContent = "各部門の上位5件です。同点は先に登録した記録を優先します。";
     if (!trialRankingForm.hidden) trialRankingName.focus();
   } catch (error) {
     if (trialResult !== result || !trialRankingDialog.open) return;
@@ -207,10 +232,10 @@ trialRankingForm.addEventListener("submit", async (event) => {
   try {
     await saveTrialRanking(category, name, result.score);
     result.eligible = false;
-    const entries = await getTrialRankings(category);
+    const groups = await readAllTrialRankings();
     if (trialResult !== result || !trialRankingDialog.open) return;
     trialRankingForm.hidden = true;
-    renderTrialRanking(entries);
+    renderTrialRanking(groups);
     trialRankingMessage.textContent = "ランキングに登録しました。";
   } catch {
     trialRankingMessage.textContent = "登録・読み込みに失敗しました。接続とFirebaseの設定を確認してください。";
