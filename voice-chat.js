@@ -14,7 +14,7 @@ function loadSdk() {
   return sdkPromise;
 }
 
-export function createVoiceChat(getIdToken) {
+export function createVoiceChat(getIdToken, onVoiceActive = () => {}) {
   const panel = document.createElement("section");
   panel.className = "voice-panel";
   panel.innerHTML = '<h3>ボイスチャット</h3><p class="voice-status" role="status"></p><button class="secondary-button voice-join" type="button">通話に参加</button> <button class="secondary-button voice-mute" type="button" hidden>マイクをミュート</button> <button class="secondary-button voice-play" type="button" hidden>相手の音声を再生</button><div class="voice-audio"></div>';
@@ -46,6 +46,7 @@ export function createVoiceChat(getIdToken) {
   }
 
   function render(message) {
+    onVoiceActive(wanted && Boolean(allowed()));
     panel.hidden = !context;
     join.disabled = !voiceConfig.tokenEndpoint || (connecting && !wanted);
     join.textContent = wanted ? "通話から退出" : "通話に参加";
@@ -173,6 +174,6 @@ export function createVoiceChat(getIdToken) {
       if (statusChanged || changed || !context) render(connected ? "通話に参加中です。" : undefined);
       connect();
     },
-    reset() { context = null; wanted = false; disconnect(); panel.hidden = true; },
+    reset() { context = null; wanted = false; disconnect(); panel.hidden = true; onVoiceActive(false); },
   };
 }

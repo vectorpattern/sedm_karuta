@@ -1,9 +1,11 @@
 import {
   answerRoom, advanceRoom, createRoom, finishIfPlayerLeft, getTrialRankings, getVoiceIdToken, joinRoom, leaveRoom, readyRoom, saveTrialRanking, serverNow, signInForMatch, startRoom, watchPresence, watchRoom,
 } from "./firebase-client.js?v=20261031-rejoin";
-import { createVoiceChat } from "./voice-chat.js?v=20261031-rejoin";
+import { createVoiceChat } from "./voice-chat.js?v=20261031-bgm-duck";
 
-const voiceChat = createVoiceChat(getVoiceIdToken);
+const voiceChat = createVoiceChat(getVoiceIdToken, (active) => {
+  bgm.volume = active ? 0.01 : 0.05;
+});
 
 function updateVoiceChat(room) {
   const target = room.status === "waiting" ? "#waiting-voice" : room.status === "finished" ? "#result-voice" : "#game-voice";
